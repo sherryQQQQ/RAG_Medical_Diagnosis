@@ -1,1 +1,2 @@
-# RAG_Medical_Diagnosis
+# RAG_Medical_DiagnosisMedical Diagnosis with Retrieval-Augmented Generation (RAG)
+This project implements a RAG pipeline that generates medical diagnoses based on patient queries and official medical guidelines. It includes document chunking, embedding generation, vector retrieval, and response generation using the Gemini API. Designed for accuracy and relevance, the system evaluates predictions using Mean Reciprocal Rank and structured JSON outputs.
