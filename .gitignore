@@ -1,3 +1,9 @@
 final/guidelines.txt
 final/list_of_responses.txt
 final/__pycache__/generate.cpython-312.pyc
+*.md
+.DS_Store
+**/.DS_Store
+__pycache__/
+*.pyc
+.env
