@@ -5,11 +5,17 @@ Commands:
     build-kg          Build Neo4j knowledge graph from guidelines.txt
     query <text>      Run a single query through the ReAct agent
     benchmark         Compare Vanilla RAG vs GraphRAG on test cases
+    generate-synthetic-data
+                      Generate a deterministic synthetic retrieval dataset
+    synthetic-benchmark
+                      Compare vector-only vs hybrid retrieval on generated synthetic data
 
 Examples:
     python -m graphrag.main build-kg
     python -m graphrag.main query "patient has fever and cough"
     python -m graphrag.main benchmark
+    python -m graphrag.main generate-synthetic-data
+    python -m graphrag.main synthetic-benchmark
 """
 
 import sys
@@ -46,6 +52,15 @@ def main():
     elif command == "benchmark":
         from graphrag.eval.benchmark import run_benchmark
         run_benchmark()
+
+    elif command == "generate-synthetic-data":
+        from graphrag.eval.synthetic_compare import save_synthetic_dataset
+        path = save_synthetic_dataset()
+        print(f"Synthetic dataset written to: {path}")
+
+    elif command == "synthetic-benchmark":
+        from graphrag.eval.synthetic_compare import compare_methods, print_report
+        print_report(compare_methods())
 
     else:
         print(f"Unknown command: {command}")
