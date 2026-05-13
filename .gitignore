@@ -1,7 +1,14 @@
 final/guidelines.txt
 final/list_of_responses.txt
 final/__pycache__/generate.cpython-312.pyc
-*.md
+
+# Local AI assistant instructions
+AGENTS.md
+claude.md
+CLAUDE.md
+
+# Local environments and machine files
+.venv/
 .DS_Store
 **/.DS_Store
 __pycache__/
