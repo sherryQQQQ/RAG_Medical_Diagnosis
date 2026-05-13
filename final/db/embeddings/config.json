@@ -5,13 +5,13 @@
   "backend": "faiss",
   "offset": 1,
   "build": {
-    "create": "2025-03-10T02:41:09Z",
-    "python": "3.12.7",
+    "create": "2026-05-13T04:49:41Z",
+    "python": "3.12.8",
     "settings": {
       "components": "IDMap,Flat"
     },
     "system": "Darwin (arm64)",
-    "txtai": "8.3.1"
+    "txtai": "9.9.0"
   },
-  "update": "2025-03-10T02:41:09Z"
+  "update": "2026-05-13T04:49:41Z"
 }

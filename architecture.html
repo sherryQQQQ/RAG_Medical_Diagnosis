@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Medical RAG — Architecture</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#f8fafc;font-family:'Segoe UI',system-ui,sans-serif;padding:32px 20px}
+  h1{text-align:center;font-size:1.35rem;color:#0f172a;margin-bottom:6px}
+  .sub{text-align:center;font-size:.8rem;color:#64748b;margin-bottom:28px}
+  .wrap{max-width:1000px;margin:0 auto;background:#fff;border-radius:14px;padding:28px 20px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:24px;font-size:.72rem}
+  .leg{display:flex;align-items:center;gap:5px}
+  .dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+</style>
+</head>
+<body>
+<h1>Medical RAG System — Architecture</h1>
+<p class="sub">final/ (Vanilla RAG baseline) &nbsp;+&nbsp; graphrag/ (Hybrid GraphRAG + ReAct Agent)</p>
+
+<div class="wrap">
+<div class="mermaid">
+%%{init:{"theme":"base","themeVariables":{"primaryColor":"#f1f5f9","primaryTextColor":"#1e293b","primaryBorderColor":"#94a3b8","lineColor":"#64748b","secondaryColor":"#f0f9ff","tertiaryColor":"#f0fdf4","fontSize":"13px"}}}%%
+flowchart TD
+
+    CSV["📄 medical_generalization.csv<br/><small>Q&amp;A evaluation dataset</small>"]
+    ENG["⚙️ engine.py<br/>--mode vanilla | graphrag<br/>--rows START END"]
+
+    CSV --> ENG
+    ENG -->|"--mode vanilla"| GL1
+    ENG -->|"--mode graphrag"| GL2
+
+    %% ─── VANILLA RAG ───────────────────────────────────────────
+    subgraph VAN ["  🗂️  Vanilla RAG  "]
+        GL1["📄 guidelines.txt"]
+        DV["DocumentVectorizer<br/>prepare.py<br/>chunk_text · sentence split on '. '"]
+        EMBD["txtai Embeddings<br/>all-mpnet-base-v2<br/>index + persist"]
+        DBE[("db/embeddings/")]
+        DR["DocumentRetriever<br/>retrieve.py<br/>embeddings.search(query, limit=2)"]
+        GEN["Generator · generate.py<br/>Gemini 1.5-flash<br/>prompt → JSON answer"]
+        GL1 --> DV --> EMBD --> DBE --> DR --> GEN
+    end
+
+    %% ─── GRAPHRAG ───────────────────────────────────────────────
+    subgraph GRA ["  🕸️  GraphRAG  "]
+        GL2["📄 guidelines.txt"]
+        SYM["Symptom Extraction<br/>engine.py · regex<br/>with / has / presents…"]
+        VR["VectorRetriever<br/>retrieval/vector.py<br/>FAISS IndexFlatIP<br/>SentenceTransformer"]
+        GR["GraphRetriever<br/>retrieval/graph.py<br/>Neo4j Cypher multi-hop<br/>Symptom→Disease→Treatment→Drug"]
+        DBF[("db/faiss_index.*<br/>FAISS flat index")]
+        NEO[("Neo4j KG<br/>Disease · Symptom<br/>Treatment · Drug")]
+        HYB["HybridRetriever<br/>retrieval/hybrid.py<br/>RRF Fusion  k=60<br/>dedup by disease name"]
+        AGT["🤖 ReAct Agent<br/>agent/react_agent.py · LangGraph StateGraph<br/>─────────────────────────────────<br/>reason_node  →  Gemini 2.0-flash<br/>act_node     →  tool calls<br/>validate_node →  APPROVED / RETRY<br/>─────────────────────────────────<br/>max retries = 3"]
+        TOL["agent/tools.py<br/>retrieve_vector · retrieve_graph<br/>check_contraindications"]
+
+        GL2 --> SYM
+        SYM --> VR & GR
+        VR --> DBF --> HYB
+        GR --> NEO --> HYB
+        HYB --> AGT
+        AGT <-->|"tool calls"| TOL
+        TOL -.->|"uses"| VR
+        TOL -.->|"uses"| GR
+    end
+
+    %% ─── OUTPUT ─────────────────────────────────────────────────
+    GEN --> OUT["📝 list_of_responses.txt<br/>question · your_answer · correct_answer · documents"]
+    AGT --> OUT
+
+    %% ─── KG BUILDING ─────────────────────────────────────────────
+    subgraph KGB ["  🔨  KG Building  ·  run once: python -m graphrag.main build-kg  "]
+        KGL["guidelines.txt<br/>paragraph chunks ≥ 100 chars"]
+        BLD["kg/builder.py<br/>Gemini LLM extraction<br/>JSON: entities + relations"]
+        SCH["kg/schema.py<br/>constraints + indexes<br/>Disease · Symptom · Treatment · Drug"]
+        NKGB[("Neo4j KG<br/>MERGE nodes + relations")]
+        KGL --> BLD --> SCH --> NKGB
+    end
+    NKGB -.->|"populates"| NEO
+
+    %% ─── EVALUATION ──────────────────────────────────────────────
+    subgraph EVAL ["  📊  Evaluation  ·  python -m graphrag.main benchmark  "]
+        BEN["eval/benchmark.py<br/>rows 70–80 of CSV<br/>Vanilla vs GraphRAG side-by-side"]
+        MET["eval/metrics.py<br/>MRR  ·  Top-5 Accuracy<br/>Context Recall"]
+        EJ["📄 eval_results.json"]
+        BEN --> MET --> EJ
+    end
+
+    %% ─── STYLES ──────────────────────────────────────────────────
+    classDef data  fill:#dbeafe,stroke:#3b82f6,color:#1e40af
+    classDef proc  fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef model fill:#f3e8ff,stroke:#9333ea,color:#581c87
+    classDef store fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef out   fill:#fee2e2,stroke:#ef4444,color:#7f1d1d
+    classDef agent fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef entry fill:#1e293b,stroke:#475569,color:#f1f5f9
+    classDef tools fill:#f0fdf4,stroke:#16a34a,color:#14532d
+
+    class CSV,GL1,GL2,KGL data
+    class DV,DR,SYM,BLD,SCH,BEN,MET proc
+    class EMBD,GEN,VR,GR model
+    class DBE,DBF,NEO,NKGB store
+    class OUT,EJ out
+    class AGT,HYB agent
+    class ENG entry
+    class TOL tools
+</div>
+
+<div class="legend">
+  <div class="leg"><div class="dot" style="background:#dbeafe;border:1.5px solid #3b82f6"></div>Data / File</div>
+  <div class="leg"><div class="dot" style="background:#dcfce7;border:1.5px solid #16a34a"></div>Processing</div>
+  <div class="leg"><div class="dot" style="background:#f3e8ff;border:1.5px solid #9333ea"></div>Model / Embedding</div>
+  <div class="leg"><div class="dot" style="background:#fef3c7;border:1.5px solid #d97706"></div>Persistent Store</div>
+  <div class="leg"><div class="dot" style="background:#e0f2fe;border:1.5px solid #0284c7"></div>Agent / Retriever</div>
+  <div class="leg"><div class="dot" style="background:#fee2e2;border:1.5px solid #ef4444"></div>Output</div>
+  <div class="leg"><div class="dot" style="background:#1e293b;border:1.5px solid #475569"></div>Entry Point</div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true})</script>
+</body>
+</html>

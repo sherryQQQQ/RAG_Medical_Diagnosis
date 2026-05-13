@@ -9,6 +9,7 @@ CLAUDE.md
 
 # Local environments and machine files
 .venv/
+.cache/
 .DS_Store
 **/.DS_Store
 __pycache__/

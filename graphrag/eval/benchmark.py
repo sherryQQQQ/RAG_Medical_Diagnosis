@@ -24,18 +24,16 @@ def _load_vanilla_pipeline():
     """Import the existing txtai-based retriever from final/."""
     import sys
     import os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "final"))
-    from prepare import DocumentVectorizer
+    final_dir = os.path.join(os.path.dirname(__file__), "..", "..", "final")
+    sys.path.insert(0, os.path.abspath(final_dir))
+    os.chdir(os.path.abspath(final_dir))  # prepare.py opens guidelines.txt by relative path
     from retrieve import DocumentRetriever
-    dv = DocumentVectorizer()
-    embeddings = dv.load_database()
-    dr = DocumentRetriever(embeddings)
-    return dr
+    return DocumentRetriever(limit=5)
 
 
 def run_vanilla(retriever, query: str) -> tuple[list[str], float]:
     start = time.time()
-    results = retriever.retrieve(query, limit=5)
+    results = retriever.retrieve(query)
     elapsed = time.time() - start
     passages = [text for _, text in results]
     return passages, elapsed
