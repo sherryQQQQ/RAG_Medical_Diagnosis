@@ -30,7 +30,7 @@ flowchart TD
     C["Synthetic Retrieval Dataset<br/>graphrag/eval/data/*.json"]:::data
 
     C --> D["Vector-Only Baseline<br/>lexical answer-document retrieval"]:::baseline
-    C --> E["Graph-Term Retriever<br/>prompt/answer medical term matching"]:::graph
+    C --> E["Graph-Term Retriever<br/>prompt/answer medical term matching"]:::graphret
 
     D --> F["Vector Ranking"]:::rank
     E --> G["Graph Ranking"]:::rank
@@ -61,7 +61,7 @@ flowchart TD
     classDef data fill:#E8F3FF,stroke:#2563EB,stroke-width:2px,color:#0F172A;
     classDef process fill:#F0FDFA,stroke:#0D9488,stroke-width:2px,color:#0F172A;
     classDef baseline fill:#FFF7ED,stroke:#EA580C,stroke-width:2px,color:#0F172A;
-    classDef graph fill:#F5F3FF,stroke:#7C3AED,stroke-width:2px,color:#0F172A;
+    classDef graphret fill:#F5F3FF,stroke:#7C3AED,stroke-width:2px,color:#0F172A;
     classDef rank fill:#F8FAFC,stroke:#64748B,stroke-width:1.5px,color:#0F172A;
     classDef fusion fill:#ECFDF5,stroke:#16A34A,stroke-width:2px,color:#0F172A;
     classDef eval fill:#FEFCE8,stroke:#CA8A04,stroke-width:2px,color:#0F172A;
