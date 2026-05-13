@@ -16,7 +16,8 @@ Given a patient-style clinical question, the system is designed to:
 2. Compare a simple vector-only RAG baseline with a graph-informed hybrid method.
 3. Use structured medical terms from the original dataset to improve retrieval.
 4. Provide measurable evaluation using MRR, Top-1 accuracy, and Top-3 accuracy.
-5. Support a future agent workflow with LangGraph, Gemini, Neo4j, and LangSmith.
+5. Include an experimental LangGraph ReAct agent workflow that can use Gemini,
+   Neo4j, FAISS, and LangSmith once external credentials are configured.
 
 The current fully runnable path is the synthetic retrieval benchmark, which does
 not require external APIs. The full LLM/Neo4j agent path requires credentials.
@@ -175,9 +176,10 @@ Ran 4 tests
 OK
 ```
 
-## Full Agentic GraphRAG Path
+## Agentic GraphRAG Path
 
-The repository also contains a more complete agentic architecture:
+The repository also contains an experimental LangGraph ReAct-style agent
+architecture:
 
 - `graphrag/retrieval/vector.py`: FAISS vector retriever
 - `graphrag/retrieval/graph.py`: Neo4j graph retriever
@@ -199,7 +201,10 @@ user query
 -> final medical QA answer
 ```
 
-This path requires external services.
+This path is implemented as a scaffold, but end-to-end execution requires
+external services: Gemini for generation, Neo4j for graph retrieval, and
+optionally LangSmith for tracing. The synthetic benchmark above is the fully
+runnable local evaluation path.
 
 ## Environment Variables
 
