@@ -7,7 +7,7 @@ load_dotenv()
 
 # --- Google Gemini ---
 GOOGLE_API_KEY: str = os.environ["GOOGLE_API_KEY"]
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # --- Neo4j ---
 NEO4J_URI: str = os.environ["NEO4J_URI"]

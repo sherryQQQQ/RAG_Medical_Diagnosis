@@ -15,9 +15,12 @@ import pickle
 import re
 from dataclasses import dataclass
 
-import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
+
+# On macOS/arm64, importing PyTorch (via sentence-transformers) before FAISS
+# avoids an OpenMP runtime conflict that can segfault during batch encoding.
+import faiss
 
 from graphrag.config import EMBEDDING_MODEL, FAISS_INDEX_PATH, GUIDELINES_PATH, TOP_K_VECTOR
 

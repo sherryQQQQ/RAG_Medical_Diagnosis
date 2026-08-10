@@ -9,6 +9,9 @@ CLAUDE.md
 
 # Local environments and machine files
 .venv/
+.venv.nosync/
+.git.nosync/
+.git.dataless-backup-*/
 .cache/
 .DS_Store
 **/.DS_Store
