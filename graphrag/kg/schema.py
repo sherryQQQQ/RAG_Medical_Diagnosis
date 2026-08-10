@@ -20,10 +20,11 @@ from neo4j import GraphDatabase
 from graphrag.config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 
 CONSTRAINTS = [
-    "CREATE CONSTRAINT disease_name IF NOT EXISTS FOR (d:Disease) REQUIRE d.name IS UNIQUE",
-    "CREATE CONSTRAINT symptom_name IF NOT EXISTS FOR (s:Symptom) REQUIRE s.name IS UNIQUE",
-    "CREATE CONSTRAINT treatment_name IF NOT EXISTS FOR (t:Treatment) REQUIRE t.name IS UNIQUE",
-    "CREATE CONSTRAINT drug_name IF NOT EXISTS FOR (dr:Drug) REQUIRE dr.name IS UNIQUE",
+    "CREATE CONSTRAINT disease_key IF NOT EXISTS FOR (d:Disease) REQUIRE d.key IS UNIQUE",
+    "CREATE CONSTRAINT symptom_key IF NOT EXISTS FOR (s:Symptom) REQUIRE s.key IS UNIQUE",
+    "CREATE CONSTRAINT treatment_key IF NOT EXISTS FOR (t:Treatment) REQUIRE t.key IS UNIQUE",
+    "CREATE CONSTRAINT drug_key IF NOT EXISTS FOR (dr:Drug) REQUIRE dr.key IS UNIQUE",
+    "CREATE CONSTRAINT source_chunk_key IF NOT EXISTS FOR (s:SourceChunk) REQUIRE s.key IS UNIQUE",
 ]
 
 INDEXES = [

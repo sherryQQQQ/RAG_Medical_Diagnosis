@@ -37,16 +37,41 @@ ORDER BY size(matched_symptoms) DESC
 LIMIT $limit
 """
 
-# Fallback: if no symptom match, search disease name directly
+# Fallback: if no symptom match, search disease name directly. This query avoids
+# HAS_SYMPTOM so it still works when the KG was built without symptom edges.
 DISEASE_SEARCH_QUERY = """
 MATCH (d:Disease)
 WHERE toLower(d.name) CONTAINS $keyword
-OPTIONAL MATCH (d)-[:HAS_SYMPTOM]->(s:Symptom)
-OPTIONAL MATCH (d)-[:TREATED_BY]->(t:Treatment)
+OPTIONAL MATCH (d)-[:TREATED_BY]->(t)
+OPTIONAL MATCH (t)-[:REQUIRES_DRUG]->(dr:Drug)
+OPTIONAL MATCH (d)-[:CONTRAINDICATED_WITH]->(ci)
 RETURN d.name AS disease,
-       collect(DISTINCT s.name) AS symptoms,
-       collect(DISTINCT t.name) AS treatments
+       [] AS symptoms,
+       collect(DISTINCT t.name) AS treatments,
+       collect(DISTINCT dr.name) AS drugs,
+       collect(DISTINCT ci.name) AS contraindications
 LIMIT $limit
+"""
+
+ENTITY_SEARCH_QUERY = """
+MATCH (d:Disease)
+WHERE any(term IN $terms WHERE toLower(d.name) CONTAINS term OR term CONTAINS toLower(d.name))
+OPTIONAL MATCH (d)-[:TREATED_BY]->(t)
+OPTIONAL MATCH (t)-[:REQUIRES_DRUG]->(dr:Drug)
+OPTIONAL MATCH (d)-[:CONTRAINDICATED_WITH]->(ci)
+RETURN d.name AS disease,
+       [] AS matched_symptoms,
+       collect(DISTINCT t.name) AS treatments,
+       collect(DISTINCT dr.name) AS drugs,
+       collect(DISTINCT ci.name) AS contraindications
+LIMIT $limit
+"""
+
+CONTRAINDICATION_QUERY = """
+MATCH (d:Disease)-[:CONTRAINDICATED_WITH]->(dr:Drug)
+WHERE toLower(dr.name) CONTAINS $drug
+  AND any(condition IN $conditions WHERE toLower(d.name) CONTAINS condition)
+RETURN DISTINCT d.name AS disease, dr.name AS drug
 """
 
 
@@ -74,10 +99,21 @@ class GraphResult:
 class GraphRetriever:
     def __init__(self):
         self._driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
+        self._relationship_types: set[str] | None = None
 
     def retrieve(self, symptoms: list[str], k: int = TOP_K_GRAPH) -> list[GraphResult]:
         """Primary retrieval: match by symptoms."""
-        normalized = [s.lower().strip() for s in symptoms]
+        normalized = [s.lower().strip() for s in symptoms if s.strip()]
+        if not normalized:
+            return []
+
+        results = self._entity_search(normalized, k)
+        if results:
+            return results
+
+        if not self._relationship_exists("HAS_SYMPTOM"):
+            return self._fallback_search(normalized[0], k)
+
         with self._driver.session() as session:
             records = session.run(
                 SYMPTOM_TO_DISEASE_QUERY,
@@ -100,16 +136,39 @@ class GraphRetriever:
 
     def check_contraindications(self, drug: str, conditions: list[str]) -> list[str]:
         """Check if a drug is contraindicated for any of the given conditions."""
-        normalized_conditions = [c.lower() for c in conditions]
-        query = """
-        MATCH (d:Disease)-[:CONTRAINDICATED_WITH]->(dr:Drug)
-        WHERE toLower(dr.name) CONTAINS $drug
-          AND toLower(d.name) IN $conditions
-        RETURN d.name AS disease, dr.name AS drug
-        """
+        normalized_conditions = [c.lower().strip() for c in conditions if c.strip()]
+        if not normalized_conditions:
+            return []
         with self._driver.session() as session:
-            records = session.run(query, drug=drug.lower(), conditions=normalized_conditions)
+            records = session.run(
+                CONTRAINDICATION_QUERY,
+                drug=drug.lower().strip(),
+                conditions=normalized_conditions,
+            )
             return [f"{r['drug']} contraindicated for {r['disease']}" for r in records]
+
+    def _relationship_exists(self, rel_type: str) -> bool:
+        if self._relationship_types is None:
+            with self._driver.session() as session:
+                records = session.run(
+                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType"
+                )
+                self._relationship_types = {r["relationshipType"] for r in records}
+        return rel_type in self._relationship_types
+
+    def _entity_search(self, terms: list[str], k: int) -> list[GraphResult]:
+        with self._driver.session() as session:
+            records = session.run(ENTITY_SEARCH_QUERY, terms=terms, limit=k)
+            return [
+                GraphResult(
+                    disease=r["disease"],
+                    matched_symptoms=r["matched_symptoms"],
+                    treatments=r["treatments"],
+                    drugs=r["drugs"],
+                    contraindications=r["contraindications"],
+                )
+                for r in records
+            ]
 
     def _fallback_search(self, keyword: str, k: int) -> list[GraphResult]:
         with self._driver.session() as session:
@@ -119,6 +178,8 @@ class GraphRetriever:
                     disease=r["disease"],
                     matched_symptoms=r["symptoms"],
                     treatments=r["treatments"],
+                    drugs=r["drugs"],
+                    contraindications=r["contraindications"],
                 )
                 for r in records
             ]

@@ -1,0 +1,34 @@
+{
+  "dataset": {
+    "source": "final/guidelines.txt",
+    "chunks": 15,
+    "idempotency_rerun": {
+      "succeeded": 0,
+      "failed": 0,
+      "skipped": 15
+    }
+  },
+  "node_counts": {
+    "Disease": 57,
+    "Symptom": 17,
+    "Treatment": 88,
+    "Drug": 48,
+    "SourceChunk": 15
+  },
+  "relationship_counts": {
+    "TREATED_BY": 76,
+    "REQUIRES_DRUG": 35,
+    "HAS_SYMPTOM": 14,
+    "CONTRAINDICATED_WITH": 6
+  },
+  "validation": {
+    "has_all_labels": true,
+    "has_core_relations": true,
+    "has_sample_paths": true,
+    "has_unique_constraints": true,
+    "retrieval_smoke_passed": 5,
+    "retrieval_smoke_total": 5,
+    "contraindication_positive_passed": true,
+    "contraindication_negative_passed": true
+  }
+}
