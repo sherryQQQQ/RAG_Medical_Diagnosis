@@ -111,4 +111,15 @@ def check_contraindications(
             "renal function, medication interactions, and other clinical factors."
         )
 
-    warnings = _get_graph().
+    warnings = _get_graph().check_contraindications(drug, condition_list)
+    if not warnings:
+        return (
+            f"No matching contraindication was found for '{drug}' in the current "
+            "knowledge graph. This limited lookup does not establish that the drug "
+            "is safe for this patient."
+        )
+    return "⚠️ Contraindication warnings:\n" + "\n".join(f"  - {w}" for w in warnings)
+
+
+# Exported tool list for the agent
+TOOLS = [retrieve_vector, retrieve_graph, check_contraindications]

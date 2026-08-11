@@ -239,4 +239,129 @@ def act_node(state: AgentState) -> dict:
     new_context = []
     for msg in result.get("messages", []):
         if isinstance(msg, ToolMessage):
-            new_context.append(_content_to_text(ms
+            new_context.append(_content_to_text(msg.content))
+    return {
+        "messages": result["messages"],
+        "retrieved_context": state["retrieved_context"] + new_context,
+    }
+
+
+def validate_node(state: AgentState) -> dict:
+    """Self-critique: check if final answer is grounded in retrieved context."""
+    # Extract last AI text response as candidate answer
+    last_ai = next(
+        (m for m in reversed(state["messages"]) if isinstance(m, AIMessage) and not m.tool_calls),
+        None,
+    )
+    if last_ai is None:
+        return {
+            "final_answer": "Unable to generate a grounded answer from the available evidence.",
+            "retry_count": MAX_RETRIES,
+            "status": "generation_failed",
+        }
+
+    candidate = _content_to_text(last_ai.content)
+    # Put the most recent safety evidence first and cap each tool independently;
+    # otherwise one long vector result can truncate later contraindication output.
+    context_summary = "\n---\n".join(
+        context[:2500] for context in reversed(state["retrieved_context"][-6:])
+    )
+
+    llm = ChatGoogleGenerativeAI(
+        model=GEMINI_MODEL,
+        google_api_key=GOOGLE_API_KEY,
+        temperature=0,
+    )
+    validation_prompt = VALIDATE_PROMPT.format(
+        query=state["query"],
+        answer=candidate,
+        context=context_summary[:8000],
+    )
+    validation_response = llm.invoke([HumanMessage(content=validation_prompt)])
+    verdict = _content_to_text(validation_response.content).strip()
+
+    validation_update = {
+        "candidate_answers": [candidate],
+        "validation_verdicts": [verdict],
+    }
+    if verdict.startswith("APPROVED"):
+        return {
+            **validation_update,
+            "final_answer": candidate,
+            "retry_count": state["retry_count"],
+            "status": "approved",
+        }
+
+    next_retry = state["retry_count"] + 1
+    if next_retry >= MAX_RETRIES:
+        # Preserve the best available candidate instead of ending with an empty
+        # answer. The status still exposes that validation did not approve it.
+        return {
+            **validation_update,
+            "final_answer": candidate,
+            "retry_count": next_retry,
+            "status": "max_retries_unapproved",
+        }
+
+    critique = verdict.replace("RETRY:", "").strip()
+    if not critique:
+        critique = "The validator did not approve the answer; make it safer and fully grounded."
+    return {
+        **validation_update,
+        "messages": [HumanMessage(content=f"Please revise: {critique}")],
+        "retry_count": next_retry,
+        "status": "retrying",
+    }
+
+
+# ---------- Routing -----------------------------------------------------------
+
+def route_after_reason(state: AgentState) -> str:
+    last = state["messages"][-1]
+    if isinstance(last, AIMessage) and last.tool_calls:
+        return "act"
+    return "validate"
+
+
+def route_after_validate(state: AgentState) -> str:
+    if state.get("final_answer") or state["retry_count"] >= MAX_RETRIES:
+        return END
+    return "reason"
+
+
+# ---------- Graph assembly ----------------------------------------------------
+
+def build_agent():
+    graph = StateGraph(AgentState)
+
+    graph.add_node("reason", reason_node)
+    graph.add_node("act", act_node)
+    graph.add_node("validate", validate_node)
+
+    graph.add_edge(START, "reason")
+    graph.add_conditional_edges("reason", route_after_reason, {"act": "act", "validate": "validate"})
+    graph.add_edge("act", "reason")
+    graph.add_conditional_edges("validate", route_after_validate, {"reason": "reason", END: END})
+
+    return graph.compile()
+
+
+# ---------- CLI ---------------------------------------------------------------
+
+if __name__ == "__main__":
+    import sys
+    query = " ".join(sys.argv[1:]) or "Patient presents with high fever, cough, and chest pain."
+    agent = build_agent()
+    initial_state: AgentState = {
+        "query": query,
+        "messages": [],
+        "retrieved_context": [],
+        "retry_count": 0,
+        "final_answer": "",
+        "candidate_answers": [],
+        "validation_verdicts": [],
+        "status": "running",
+    }
+    result = agent.invoke(initial_state)
+    print("\n=== FINAL ANSWER ===")
+    print(result["final_answer"])

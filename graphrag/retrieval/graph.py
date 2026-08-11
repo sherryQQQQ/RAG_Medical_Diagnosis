@@ -189,4 +189,19 @@ class GraphRetriever:
                 for r in records
             ]
 
-    def _
+    def _fallback_search(self, keyword: str, k: int) -> list[GraphResult]:
+        with self._driver.session() as session:
+            records = session.run(DISEASE_SEARCH_QUERY, keyword=keyword, limit=k)
+            return [
+                GraphResult(
+                    disease=r["disease"],
+                    matched_symptoms=r["symptoms"],
+                    treatments=r["treatments"],
+                    drugs=r["drugs"],
+                    contraindications=r["contraindications"],
+                )
+                for r in records
+            ]
+
+    def close(self):
+        self._driver.close()

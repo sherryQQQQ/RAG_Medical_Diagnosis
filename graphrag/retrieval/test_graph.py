@@ -52,4 +52,16 @@ class GraphRetrieverTests(unittest.TestCase):
 
     def test_empty_conditions_do_not_query_database(self):
         retriever = self.make_retriever([])
+        self.assertEqual(retriever.check_contraindications("aspirin", []), [])
+        self.assertEqual(retriever._driver.fake_session.last_query, "")
+
+    def test_find_drugs_in_text_returns_known_drugs(self):
+        retriever = self.make_retriever([{"drug": "terlipressin"}])
         self.assertEqual(
+            retriever.find_drugs_in_text("Consider terlipressin for HRS"),
+            ["terlipressin"],
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
