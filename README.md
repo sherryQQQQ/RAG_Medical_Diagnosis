@@ -898,6 +898,147 @@ against paying for 500 cases with the unchanged Reflector. Stage 5I should first
 measure robustness and abstention policy explicitly, then a revised Agent can be
 re-evaluated on this frozen 100-case checkpoint before a final 500-case run.
 
+### Stage 5I — Matched-Corpus Agent Robustness Pilot
+
+Goal: evaluate controlled behavioral changes rather than another aggregate QA
+score. The primary experiment compares a direct RAG pipeline with the LangGraph
+Agent while holding the question, project guideline corpus, frozen FAISS
+retrieval, top-k 8, Gemini model, and generation instruction fixed. The main
+variable is Agent orchestration and reflection.
+
+The pilot reuses the five Stage 5B families and creates no new model-generated
+test data. It selects the original, paraphrase, irrelevant distractor, and
+directional-or-abstention cases, then deterministically adds one conflicting-
+evidence case and one retrieval-tool-failure case per family. Conflicts reuse an
+existing family `forbidden_claim` inside an explicitly labeled untrusted
+passage. The final 30-case matrix is:
+
+| Slice | Cases |
+|---|---:|
+| Original | 5 |
+| Paraphrase invariance | 5 |
+| Irrelevant distractor | 5 |
+| Directional/counterfactual | 1 |
+| Missing evidence / abstention | 4 |
+| Conflicting evidence | 5 |
+| Retrieval-tool failure | 5 |
+| **Total** | **30** |
+
+Each case runs through both matched systems, and one combined judge request
+evaluates both outputs. Generation and judgment are checkpointed after every
+case. The command includes separate US$0.90 generation and US$0.35 judge cost
+guards; local raw outputs remain under gitignored `graphrag/eval/external/`.
+
+~~~bash
+# Zero-call plan and cost estimate
+.venv.nosync/bin/python -m graphrag.main robustness-benchmark --dry-run
+
+# Primary matched project-guideline run
+PYTHONUNBUFFERED=1 .venv.nosync/bin/python -m graphrag.main \
+  robustness-benchmark \
+  --corpus project-guidelines \
+  --top-k 8 \
+  --generation-cost-guard 0.90 \
+  --judge-cost-guard 0.35
+~~~
+
+Primary behavioral result:
+
+| Metric | Matched RAG | Matched Agent |
+|---|---:|---:|
+| Original reference accuracy | 3/5 (0.60) | 2/5 (0.40) |
+| Overall reference accuracy | 0.467 | 0.433 |
+| Overall behavior pass | 0.567 | 0.567 |
+| Paired paraphrase+distractor consistency | 1.00 | 0.80 |
+| Correctness retention on eligible original-correct families | 4/6 (0.667) | 4/4 (1.00) |
+| Directional consistency | 1/1 (1.00) | 1/1 (1.00) |
+| Abstention precision / recall / F1 | 1.00 / 0.25 / 0.40 | N/A / 0.00 / 0.00 |
+| Conflict disclosure and handling | 3/5 (0.60) | 4/5 (0.80) |
+| Tool-failure recovery | 5/5 (1.00) | 5/5 (1.00) |
+| Unsupported-claim rate | 0.067 | 0.100 |
+| Worst-slice behavior pass | 0.25 | 0.00 |
+| Provider-error rate | 0.00 | 0.00 |
+
+Behavior pass by perturbation:
+
+| Slice | Matched RAG | Matched Agent |
+|---|---:|---:|
+| Paraphrase | 2/5 | 2/5 |
+| Irrelevant distractor | 2/5 | 3/5 |
+| Directional/counterfactual | 1/1 | 1/1 |
+| Missing evidence / abstention | 1/4 | 0/4 |
+| Conflicting evidence | 3/5 | 4/5 |
+| Retrieval-tool failure | 5/5 | 5/5 |
+
+The paired comparison has two Agent wins, two RAG wins, 26 ties, and exact
+McNemar p = 1.0. The pilot therefore shows no net Agent quality improvement.
+The Agent handled one more distractor and one more explicit conflict, but lost
+one original answer and every missing-evidence abstention case. Its zero
+abstention recall makes abstention the worst robustness slice, despite the
+generation instruction explicitly requiring it when decisive patient facts are
+missing.
+
+System trade-offs:
+
+| Metric | Matched RAG | Matched Agent |
+|---|---:|---:|
+| p50 latency | 2.25 s | 5.63 s |
+| p95 latency | 5.44 s | 9.32 s |
+| Input tokens | 46,034 | 91,668 |
+| Output tokens | 15,187 | 35,224 |
+| Total tokens | 61,221 | 126,892 |
+| Provider requests | 30 | 62 |
+| Estimated generation cost | US$0.0518 | US$0.1156 |
+| Reflection approval | N/A | 1.00 |
+| Retry-case rate | N/A | 0.033 |
+
+The Agent used 2.07x the tokens and 2.23x the generation cost, increased p50
+latency by 2.51x and p95 by 1.71x, and did not improve aggregate behavior pass.
+Reflection approved every final output. Its single retry occurred on an injected
+tool failure: the first draft already safely disclosed the failure, but the
+Reflector incorrectly requested a definite vaccine regimen before approving a
+longer version of the same abstention. This is an unnecessary-retry failure, not
+a recovered medical answer.
+
+Before the primary run, the same matrix was executed against MedRAG Textbooks
+for continuity with Stage 5H. That diagnostic found zero correct original
+families for either system because the internal references contain newer,
+project-specific guidance such as PCV21 and rapid inpatient methadone titration
+that is absent from or contradicted by the older textbooks. It produced a 0.233
+behavior-pass rate for both systems, no eligible correctness-retention pairs,
+and worst-slice pass of zero. Those results are retained as a corpus-mismatch
+diagnostic, not presented as the Stage 5I primary robustness score. Switching to
+the source-matched project guideline corpus raised behavior pass to 0.567 and
+made correctness retention estimable.
+
+The evaluator also exposed two reliability problems. First, the schema allowed
+cross-field contradictions such as `abstained=true` together with
+`answer_correct=true`, or a preserving `behavior_pass=true` when
+`answer_correct=false`. Judge schema v4 preserves the raw fields and then
+recomputes behavior from deterministic per-slice contracts. Second, the judge
+sometimes passed a conflict without explicit disclosure and failed another
+output that literally said the untrusted claim conflicted with trusted
+evidence. Saved answer text now deterministically verifies observable conflict
+and tool-failure disclosure markers. These checkpoint migrations required zero
+new model calls. A remaining evaluator limitation is reference strictness: the
+DKA answers explain normal/mild glucose and SGLT2 use but do not use the exact
+phrase `Normoglycemic DKA`; their scores are not manually overridden without
+independent clinical review.
+
+The primary generation plus judge equivalent cost was US$0.2720. Including the
+Textbooks corpus-mismatch diagnostic, total new Stage 5I spend was approximately
+US$0.6475. All 120 system-case generations and 60 combined judgments completed
+without provider error, and no successful paid checkpoint was repeated during
+the offline evaluator migrations.
+
+This five-family pilot is a design diagnostic, not a clinical robustness claim.
+In particular, the directional slice has n=1 and the references remain marked
+for human review. Before expanding to 100 robustness families or a 500-case
+external benchmark, the next Agent revision should add an explicit task-policy
+decision for answer versus abstention, validate that decision separately from
+grounding, and avoid rewriting an already safe draft merely to satisfy the
+Reflector.
+
 ## Metrics by System Stage
 
 Different stages require different metrics. Adding more metrics is useful only
@@ -994,6 +1135,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.eval.test_mirage_corpus \
   graphrag.eval.test_mirage_benchmark \
   graphrag.eval.test_mirage_judge \
+  graphrag.eval.test_robustness_benchmark \
   graphrag.eval.test_robustness_generate \
   graphrag.eval.test_synthetic_compare -v
 ~~~
@@ -1011,6 +1153,7 @@ graphrag/
     mirage_benchmark.py        external Medical MIRAGE adapter and evaluator
     mirage_judge.py            evidence/generation judge and failure slicer
     mirage_corpus.py           pinned Textbooks download and local BM25 index
+    robustness_benchmark.py    matched RAG/Agent behavioral robustness pilot
     robustness_generate.py     behavioral robustness dataset generator
     synthetic_compare.py       retrieval-only comparison
     data/                      versioned evaluation artifacts
@@ -1038,4 +1181,7 @@ scripts/
   independent from the generation model and retains its rationale.
 - Automated safety scores require manual review of every answer marked unsafe
   and a stratified review of answers marked safe.
+- Stage 5I contains only five internal families, one directional case, and
+  model-judged open-ended answers. It diagnoses policies and evaluator behavior;
+  it does not estimate population-level clinical robustness.
 - This system must not be used as a substitute for professional medical care.
