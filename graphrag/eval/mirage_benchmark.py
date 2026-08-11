@@ -21,7 +21,7 @@ import shutil
 import statistics
 import time
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 from urllib.request import Request, urlopen
@@ -42,6 +42,9 @@ OFFICIAL_COUNTS = {
 }
 DEFAULT_CACHE = Path(__file__).parent / "external" / "mirage" / "benchmark.json"
 DEFAULT_OUTPUT = Path(__file__).parent / "external" / "mirage" / "results.json"
+DEFAULT_TEXTBOOKS_OUTPUT = (
+    Path(__file__).parent / "external" / "mirage" / "textbooks_results.json"
+)
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,9 @@ class SystemResult:
     input_tokens: int
     output_tokens: int
     total_tokens: int
+    retrieved_ids: list[str] = field(default_factory=list)
+    retrieval_latency_s: float = 0.0
+    context_count: int = 0
 
 
 SystemRunner = Callable[[MirageCase], Mapping[str, Any]]
@@ -356,6 +362,69 @@ def build_agent_runner() -> SystemRunner:
     return run
 
 
+def build_textbooks_rag_runner(
+    index_path: Path, top_k: int = 8, model: str | None = None
+) -> SystemRunner:
+    """Build a matched-corpus RAG baseline using official MedRAG Textbooks."""
+    from langchain_core.messages import HumanMessage
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from graphrag.config import (
+        GEMINI_MAX_RETRIES,
+        GEMINI_MODEL,
+        GEMINI_REQUEST_TIMEOUT_S,
+        GOOGLE_API_KEY,
+    )
+    from graphrag.eval.mirage_corpus import TextbooksBM25Retriever
+
+    retriever = TextbooksBM25Retriever(index_path)
+    llm = ChatGoogleGenerativeAI(
+        model=model or GEMINI_MODEL,
+        google_api_key=GOOGLE_API_KEY,
+        temperature=0,
+        request_timeout=GEMINI_REQUEST_TIMEOUT_S,
+        retries=GEMINI_MAX_RETRIES,
+    )
+
+    def run(case: MirageCase) -> Mapping[str, Any]:
+        return _run_textbooks_rag_case(case, retriever, llm, HumanMessage, top_k)
+
+    return run
+
+
+def _run_textbooks_rag_case(
+    case: MirageCase,
+    retriever: Any,
+    llm: Any,
+    human_message_class: Any,
+    top_k: int,
+) -> Mapping[str, Any]:
+    """Pure orchestration seam used to verify question-only retrieval offline."""
+    retrieval_started = time.perf_counter()
+    snippets = retriever.retrieve(case.retrieval_query, k=top_k)
+    retrieval_latency = time.perf_counter() - retrieval_started
+    context = "\n\n".join(
+        f"Document [{position}] (Title: {snippet.title}) {snippet.content}"
+        for position, snippet in enumerate(snippets, start=1)
+    )
+    prompt = (
+        "You are a helpful medical expert answering a multiple-choice medical "
+        "question using the relevant documents. Think through the evidence and "
+        "choose a definite answer from the provided options. Return JSON with "
+        'keys "step_by_step_thinking" and "answer_choice".\n\n'
+        f"Relevant documents:\n{context}\n\n{case.answer_query}"
+    )
+    response = llm.invoke([human_message_class(content=prompt)])
+    return {
+        "answer": _content_text(response.content),
+        "status": "completed",
+        "tool_names": ["retrieve_textbooks_bm25"],
+        "retrieved_ids": [snippet.snippet_id for snippet in snippets],
+        "retrieval_latency_s": retrieval_latency,
+        "context_count": len(snippets),
+        **_usage(response),
+    }
+
+
 def _percentile(values: list[float], quantile: float) -> float:
     if not values:
         return 0.0
@@ -417,7 +486,27 @@ def summarize_system(results: list[SystemResult]) -> dict[str, Any]:
             )
             for result in results
         )
-        if results and any(result.tool_names for result in results)
+        if results
+        and any(
+            "retrieve_graph" in result.tool_names
+            or "retrieve_vector" in result.tool_names
+            for result in results
+        )
+        else None,
+        "retrieval_success_rate": statistics.fmean(
+            float(result.context_count > 0) for result in results
+        )
+        if results and any("retrieve_textbooks_bm25" in result.tool_names for result in results)
+        else None,
+        "average_retrieval_latency_s": statistics.fmean(
+            result.retrieval_latency_s for result in results
+        )
+        if results and any("retrieve_textbooks_bm25" in result.tool_names for result in results)
+        else None,
+        "average_context_count": statistics.fmean(
+            result.context_count for result in results
+        )
+        if results and any("retrieve_textbooks_bm25" in result.tool_names for result in results)
         else None,
         "per_dataset": per_dataset,
     }
@@ -475,6 +564,7 @@ def _report(
     seed: int,
     generation_model: str,
     source_path: Path,
+    system_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     by_system = {
         system: [result for result in results if result.system == system]
@@ -505,10 +595,12 @@ def _report(
         "generation_model": generation_model,
         "answer_parser_version": ANSWER_PARSER_VERSION,
         "systems": systems,
+        "system_metadata": dict(system_metadata or {}),
         "corpus_note": (
             "current-agent uses this project's small guideline FAISS/Neo4j corpus. "
-            "Its score is not leaderboard-comparable to MedRAG until the same "
-            "benchmark corpus or official snippets are integrated."
+            "textbooks-rag uses the official MedRAG Textbooks corpus with a local "
+            "SQLite FTS5 BM25 retriever. Different corpora/retrievers must be "
+            "reported separately from published MedRAG configurations."
         ),
         "metrics": {
             system: summarize_system(by_system[system]) for system in systems
@@ -526,6 +618,7 @@ def run_benchmark(
     seed: int = 13,
     generation_model: str = "configured-gemini-model",
     resume: bool = True,
+    system_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     systems = list(runners)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -539,6 +632,8 @@ def run_benchmark(
             raise ValueError("Existing checkpoint uses different systems")
         if saved.get("generation_model") != generation_model:
             raise ValueError("Existing checkpoint uses a different generation model")
+        if saved.get("system_metadata", {}) != dict(system_metadata or {}):
+            raise ValueError("Existing checkpoint uses different system metadata")
         case_by_id = {case.case_id: case for case in cases}
         parser_changed = saved.get("answer_parser_version") != ANSWER_PARSER_VERSION
         for item in saved.get("results", []):
@@ -590,13 +685,32 @@ def run_benchmark(
                 input_tokens=int(output.get("input_tokens", 0)),
                 output_tokens=int(output.get("output_tokens", 0)),
                 total_tokens=int(output.get("total_tokens", 0)),
+                retrieved_ids=list(output.get("retrieved_ids", [])),
+                retrieval_latency_s=float(output.get("retrieval_latency_s", 0.0)),
+                context_count=int(output.get("context_count", 0)),
             )
             results.append(result)
-            report = _report(cases, results, systems, seed, generation_model, source_path)
+            report = _report(
+                cases,
+                results,
+                systems,
+                seed,
+                generation_model,
+                source_path,
+                system_metadata,
+            )
             output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
             outcome = "ERROR" if error else "correct" if result.correct else "wrong"
             print(f"[{position}/{total_calls}] {case.case_id} {system}: {outcome}")
-    final = _report(cases, results, systems, seed, generation_model, source_path)
+    final = _report(
+        cases,
+        results,
+        systems,
+        seed,
+        generation_model,
+        source_path,
+        system_metadata,
+    )
     output_path.write_text(json.dumps(final, indent=2) + "\n", encoding="utf-8")
     return final
 
@@ -632,10 +746,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--download", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--no-resume", action="store_true")
+    from graphrag.eval.mirage_corpus import DEFAULT_INDEX as DEFAULT_TEXTBOOKS_INDEX
+
+    parser.add_argument("--textbooks-index", type=Path, default=DEFAULT_TEXTBOOKS_INDEX)
+    parser.add_argument("--textbooks-top-k", type=int, default=8)
     parser.add_argument(
         "--systems",
         nargs="+",
-        choices=("closed-book", "current-agent"),
+        choices=("closed-book", "current-agent", "textbooks-rag"),
         default=("closed-book", "current-agent"),
     )
     args = parser.parse_args(argv)
@@ -653,13 +771,31 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     from graphrag.config import GEMINI_MODEL
+    from graphrag.eval.mirage_corpus import index_metadata
 
     runners: dict[str, SystemRunner] = {}
+    system_metadata: dict[str, Any] = {}
     for system in args.systems:
         if system == "closed-book":
             runners[system] = build_closed_book_runner(GEMINI_MODEL)
         elif system == "current-agent":
             runners[system] = build_agent_runner()
+            system_metadata[system] = {
+                "corpus": "project-guidelines-v1",
+                "retrieval": "mandatory graph then vector",
+            }
+        elif system == "textbooks-rag":
+            runners[system] = build_textbooks_rag_runner(
+                args.textbooks_index, args.textbooks_top_k, GEMINI_MODEL
+            )
+            system_metadata[system] = {
+                "corpus": "MedRAG/textbooks",
+                "retriever": "sqlite-fts5-bm25",
+                "top_k": args.textbooks_top_k,
+                "index": index_metadata(args.textbooks_index),
+            }
+    if "textbooks-rag" in args.systems and args.output == DEFAULT_OUTPUT:
+        args.output = DEFAULT_TEXTBOOKS_OUTPUT
     report = run_benchmark(
         cases,
         runners,
@@ -668,6 +804,7 @@ def main(argv: list[str] | None = None) -> None:
         seed=args.seed,
         generation_model=GEMINI_MODEL,
         resume=not args.no_resume,
+        system_metadata=system_metadata,
     )
     print("\nMedical MIRAGE")
     print("=" * 48)

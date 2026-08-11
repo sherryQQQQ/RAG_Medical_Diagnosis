@@ -21,6 +21,7 @@ medical device.
 | 5B | Candidate-generation pilot | Complete | 5 families / 25 schema-valid candidates, human review still required |
 | 5C | External Medical MIRAGE adapter | Complete | 7,663 validated source cases and a frozen 500-case QOR selection |
 | 5D | MIRAGE online execution pilot | Complete | 10 paired cases exposed corpus coverage and provider-timeout failure modes |
+| 5E | Matched MedRAG Textbooks retrieval | Complete | 125,847 official snippets, pinned manifest, local BM25 index on external storage |
 
 ## Architecture
 
@@ -507,6 +508,82 @@ a matched biomedical corpus before increasing the Agent run to 100 or 500
 cases. Scaling the current 15-chunk corpus run would produce a more precise
 measurement of a known coverage mismatch rather than a fair RAG benchmark.
 
+### Stage 5E — Matched MedRAG Textbooks Retrieval
+
+Goal: replace the 15-chunk corpus mismatch with a corpus used by the published
+MIRAGE/MedRAG study, while keeping the laptop setup reproducible and the
+external source text out of Git.
+
+The official MIRAGE archive of top-10k IDs for every corpus/retriever/task
+combination is approximately 18.9 GB compressed, before the referenced corpora
+are available locally. Stage 5E instead uses the official
+[MedRAG Textbooks corpus](https://huggingface.co/datasets/MedRAG/textbooks): 18
+medical textbooks and 125,847 pre-chunked snippets. This is a matched MIRAGE
+corpus, but the local SQLite FTS5 BM25 implementation must still be reported as
+its own retriever configuration rather than as a published leaderboard run.
+
+Implemented:
+
+- Pin the corpus revision and all 18 file sizes/SHA-256 values in a versioned
+  source manifest.
+- Download each file atomically, reuse validated files, and reject size/hash
+  mismatches.
+- Build a persistent dependency-free SQLite FTS5 BM25 index with unique snippet
+  IDs and stored corpus/index provenance.
+- Keep all source text and the generated index outside the repository through
+  `MIRAGE_EXTERNAL_ROOT`.
+- Add a `textbooks-rag` MIRAGE system that retrieves with the question only,
+  injects top-k documents into a MedRAG-style prompt, and records snippet IDs,
+  context count, retrieval latency, model tokens, and exact-choice accuracy.
+- Keep `textbooks-rag` separate from `current-agent`; this isolates the effect
+  of fixing the corpus before dependency-injecting it into LangGraph.
+
+Observed local build on `/Volumes/T7 Shield`:
+
+| Item | Result |
+|---|---:|
+| Source files validated | 18/18 |
+| Source bytes | 211,559,353 (201.8 MiB) |
+| Indexed snippets | 125,847 |
+| Manifest fingerprint | `fb792a392bb95287` |
+| SQLite index bytes | 191,430,656 (182.6 MiB) |
+| Combined disk use | 389 MiB |
+| Frozen 10-case non-empty retrieval | 10/10 |
+| Average / maximum retrieval latency | 141 ms / 367 ms |
+
+Non-empty retrieval is an execution metric, not a relevance judgment. The
+retrieved passages still require downstream answer-accuracy evaluation or
+human relevance labels before claiming retrieval quality.
+
+Configure the external location in the local `.env`:
+
+~~~text
+MIRAGE_EXTERNAL_ROOT=/Volumes/T7 Shield/RAG_Medical_Diagnosis/mirage
+~~~
+
+Reproduce or validate the corpus and index:
+
+~~~bash
+.venv.nosync/bin/python -m graphrag.main mirage-corpus \
+  --download \
+  --build-index
+
+.venv.nosync/bin/python -m graphrag.main mirage-corpus --dry-run
+~~~
+
+Query the local index without Gemini:
+
+~~~bash
+.venv.nosync/bin/python -m graphrag.main mirage-corpus \
+  --query "facial nerve compression at the stylomastoid foramen" \
+  --top-k 3
+~~~
+
+The next paid pilot can compare `closed-book` with `textbooks-rag` on the same
+frozen ten questions. A subsequent stage should inject this same retriever into
+LangGraph so RAG generation and Agent orchestration can be compared while
+holding the corpus fixed.
+
 ## Metrics by System Stage
 
 Different stages require different metrics. Adding more metrics is useful only
@@ -600,6 +677,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.retrieval.test_graph \
   graphrag.kg.test_builder \
   graphrag.eval.test_e2e_benchmark \
+  graphrag.eval.test_mirage_corpus \
   graphrag.eval.test_mirage_benchmark \
   graphrag.eval.test_robustness_generate \
   graphrag.eval.test_synthetic_compare -v
@@ -616,6 +694,7 @@ graphrag/
   eval/
     e2e_benchmark.py           final-answer evaluation and local traces
     mirage_benchmark.py        external Medical MIRAGE adapter and evaluator
+    mirage_corpus.py           pinned Textbooks download and local BM25 index
     robustness_generate.py     behavioral robustness dataset generator
     synthetic_compare.py       retrieval-only comparison
     data/                      versioned evaluation artifacts

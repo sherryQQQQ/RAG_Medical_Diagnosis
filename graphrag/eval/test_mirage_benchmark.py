@@ -5,6 +5,8 @@ from pathlib import Path
 
 from graphrag.eval.mirage_benchmark import (
     DATASET_ORDER,
+    MirageCase,
+    _run_textbooks_rag_case,
     load_benchmark,
     paired_comparison,
     parse_answer_choice,
@@ -29,6 +31,46 @@ def _fixture() -> dict:
 
 
 class MirageBenchmarkTests(unittest.TestCase):
+    def test_textbooks_rag_keeps_options_out_of_retrieval(self):
+        from graphrag.eval.mirage_corpus import TextbookSnippet
+
+        queries = []
+        prompts = []
+
+        class Retriever:
+            def retrieve(self, query, k):
+                queries.append((query, k))
+                return [TextbookSnippet("doc-1", "Title", "Evidence", 1.0)]
+
+        class LLM:
+            def invoke(self, messages):
+                prompts.append(messages[0].content)
+                return type(
+                    "Response",
+                    (),
+                    {"content": '{"answer_choice":"A"}', "usage_metadata": {}},
+                )()
+
+        class Message:
+            def __init__(self, content):
+                self.content = content
+
+        case = MirageCase(
+            case_id="mmlu:test",
+            dataset="mmlu",
+            source_id="test",
+            retrieval_query="Pure medical question?",
+            answer_query="Pure medical question?\nA. SECRET OPTION\nB. Other",
+            options={"A": "SECRET OPTION", "B": "Other"},
+            answer="A",
+        )
+        result = _run_textbooks_rag_case(case, Retriever(), LLM(), Message, 8)
+
+        self.assertEqual(queries, [("Pure medical question?", 8)])
+        self.assertNotIn("SECRET OPTION", queries[0][0])
+        self.assertIn("SECRET OPTION", prompts[0])
+        self.assertEqual(result["retrieved_ids"], ["doc-1"])
+
     def test_load_and_stratify_separates_retrieval_from_options(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "benchmark.json"
@@ -118,6 +160,7 @@ class MirageBenchmarkTests(unittest.TestCase):
                 input_tokens=1,
                 output_tokens=1,
                 total_tokens=2,
+                context_count=1 if system == "textbooks-rag" else 0,
             )
 
         baseline = [result("1", "closed-book", False), result("2", "closed-book", True)]
