@@ -14,6 +14,8 @@ from graphrag.eval.robustness_generate import (
     build_generation_plan,
     dry_run_report,
     generate_dataset,
+    generate_preview,
+    generate_validated_family_payload,
     load_source_cases,
     load_spec,
     normalize_family_payload,
@@ -24,7 +26,7 @@ from graphrag.eval.robustness_generate import (
 def family_payload(source: SourceCase, terminal_type: str = "directional_expectation"):
     terminal = {
         "test_type": terminal_type,
-        "question": f"Changed decisive fact for {source.case_id}?",
+        "question": "Changed decisive fact in the source question?",
         "reference_answer": "The original recommendation is no longer justified.",
         "gold_facts": ["Do not apply the original recommendation unchanged."],
         "critical_change": "One decisive fact was changed.",
@@ -37,9 +39,9 @@ def family_payload(source: SourceCase, terminal_type: str = "directional_expecta
         "gold_facts": ["Use the source recommendation.", "Do not add a new dose."],
         "forbidden_claims": ["Invented treatment"],
         "variants": [
-            {"test_type": "paraphrase", "question": f"Reworded {source.case_id}?"},
-            {"test_type": "lay_language", "question": f"Plain words {source.case_id}?"},
-            {"test_type": "distractor_noise", "question": f"Noisy detail {source.case_id}?"},
+            {"test_type": "paraphrase", "question": "Reworded source question?"},
+            {"test_type": "lay_language", "question": "Plain wording of the source question?"},
+            {"test_type": "distractor_noise", "question": "Source question with harmless noise?"},
             terminal,
         ],
     }
@@ -156,13 +158,84 @@ class RobustnessGenerationTests(unittest.TestCase):
         self.assertTrue(
             all(case["reference_answer"] == "Reference one." for case in preserving.values())
         )
-        self.assertTrue(all(case["paired_with"].endswith("_original") for case in preserving.values()))
+        self.assertTrue(
+            all(
+                case["paired_with"].endswith("_original")
+                for case in preserving.values()
+            )
+        )
 
     def test_duplicate_questions_are_rejected(self):
         payload = family_payload(self.sources[0])
         payload["variants"][0]["question"] = self.sources[0].question
         with self.assertRaisesRegex(ValueError, "duplicate questions"):
             normalize_family_payload(self.sources[0], payload, "fake-generator")
+
+    def test_semantically_invalid_json_is_retried_with_validation_feedback(self):
+        invalid = family_payload(self.sources[0], "abstention")
+        del invalid["variants"][-1]["critical_change"]
+        valid = family_payload(self.sources[0], "abstention")
+        responses = iter([invalid, valid])
+        prompts = []
+
+        def generate_json(prompt):
+            prompts.append(prompt)
+            return next(responses)
+
+        result = generate_validated_family_payload(
+            self.sources[0], "fake-generator", generate_json
+        )
+        self.assertEqual(result, valid)
+        self.assertEqual(len(prompts), 2)
+        self.assertIn("failed validation", prompts[1])
+        self.assertIn("critical_change", prompts[1])
+        self.assertIn("previous JSON", prompts[1])
+
+    def test_preserving_variant_cannot_drop_race_or_numeric_facts(self):
+        source = SourceCase(
+            "case_003",
+            "A 39-year-old Black man with family history at age 55 asks about screening.",
+            "Start screening at age 40.",
+        )
+        payload = family_payload(source)
+        payload["variants"][0]["question"] = (
+            "A 39-year-old Black man with family history at age 55 asks when to screen."
+        )
+        payload["variants"][1]["question"] = (
+            "A 39-year-old man whose dad had the illness at age 55 asks when to screen."
+        )
+        payload["variants"][2]["question"] = (
+            "A 39-year-old Black man with family history at age 55 asks when "
+            "to screen; form in blue pen."
+        )
+        with self.assertRaisesRegex(ValueError, "protected term group"):
+            normalize_family_payload(source, payload, "fake-generator")
+
+    def test_distractor_cannot_add_clinical_history(self):
+        source = SourceCase("case_004", "A patient asks about treatment.", "Use treatment A.")
+        payload = family_payload(source)
+        payload["variants"][2]["question"] = (
+            "A patient with seasonal allergies asks about treatment."
+        )
+        with self.assertRaisesRegex(ValueError, "added clinical detail"):
+            normalize_family_payload(source, payload, "fake-generator")
+
+    def test_preserving_variant_cannot_add_a_date(self):
+        source = SourceCase("case_005", "A 45-year-old patient asks a question.", "Answer A.")
+        payload = family_payload(source)
+        for variant in payload["variants"][:3]:
+            variant["question"] = f"A 45-year-old patient asks: {variant['test_type']}?"
+        payload["variants"][2]["question"] += " Chart updated in 2023."
+        with self.assertRaisesRegex(ValueError, "changed numeric facts"):
+            normalize_family_payload(source, payload, "fake-generator")
+
+    def test_directional_label_cannot_hide_an_abstention_answer(self):
+        source = SourceCase("case_006", "A patient asks a question.", "Answer A.")
+        payload = family_payload(source)
+        terminal = payload["variants"][-1]
+        terminal["reference_answer"] = "The available information is insufficient."
+        with self.assertRaisesRegex(ValueError, "directional_expectation"):
+            normalize_family_payload(source, payload, "fake-generator")
 
     def test_generation_checkpoints_and_resume_avoids_repeat_calls(self):
         spec = small_spec()
@@ -210,6 +283,63 @@ class RobustnessGenerationTests(unittest.TestCase):
             with output.open(encoding="utf-8") as handle:
                 saved = json.load(handle)
             self.assertTrue(saved["metadata"]["complete"])
+
+    def test_preview_limits_families_and_resumes_without_conflict_calls(self):
+        spec = small_spec()
+        plan = build_generation_plan(spec, self.sources)
+        family_generator = FakeFamilyGenerator()
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "preview.json"
+            preview = generate_preview(
+                spec=spec,
+                plan=plan,
+                source_cases=self.sources,
+                family_generator=family_generator,
+                family_limit=1,
+                output=output,
+                resume=False,
+                delay_s=0,
+            )
+            self.assertEqual(len(family_generator.calls), 1)
+            self.assertEqual(preview["summary"]["n_cases"], 5)
+            self.assertEqual(preview["summary"]["n_families"], 1)
+            self.assertEqual(preview["summary"]["preserving_reference_checks"], 3)
+            self.assertEqual(preview["summary"]["duplicate_question_count"], 0)
+            self.assertTrue(preview["metadata"]["preview"])
+
+            resumed_generator = FakeFamilyGenerator()
+            resumed = generate_preview(
+                spec=spec,
+                plan=plan,
+                source_cases=self.sources,
+                family_generator=resumed_generator,
+                family_limit=1,
+                output=output,
+                resume=True,
+                delay_s=0,
+            )
+            self.assertEqual(resumed_generator.calls, [])
+            self.assertEqual(
+                resumed["metadata"]["dataset_fingerprint"],
+                preview["metadata"]["dataset_fingerprint"],
+            )
+
+    def test_preview_rejects_out_of_range_limit(self):
+        spec = small_spec()
+        plan = build_generation_plan(spec, self.sources)
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "family_limit"):
+                generate_preview(
+                    spec=spec,
+                    plan=plan,
+                    source_cases=self.sources,
+                    family_generator=FakeFamilyGenerator(),
+                    family_limit=3,
+                    output=Path(directory) / "preview.json",
+                    resume=False,
+                    delay_s=0,
+                )
 
 
 if __name__ == "__main__":

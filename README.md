@@ -18,6 +18,7 @@ medical device.
 | 3 | Bounded safety-gated LangGraph Agent | Complete | 5/5 online smoke cases passed |
 | 4 | End-to-end evaluation and observability | Complete | Frozen 5-case run, independent judge, local traces |
 | 5A | Robustness dataset design | Complete | Versioned 550-case matrix, schema, offline dry-run |
+| 5B | Candidate-generation pilot | Complete | 5 families / 25 schema-valid candidates, human review still required |
 
 ## Architecture
 
@@ -306,6 +307,61 @@ The frozen specification is stored in
 `graphrag/eval/specs/robustness_case.schema.json`. Stage 5A does not run the
 Agent or claim robustness results; it establishes the test contract for Stage
 5B onward.
+
+### Stage 5B — Candidate-Generation Pilot
+
+Goal: test the generator on a small paid sample before committing to the full
+550-case generation run.
+
+The preview command sends only the selected source questions and references to
+Gemini. It does not execute the Agent, judge answers, or generate the 50
+adversarial cases:
+
+~~~bash
+.venv.nosync/bin/python -m graphrag.main robustness-generate \
+  --preview-families 5 \
+  --no-resume
+~~~
+
+Final pilot result:
+
+| Metric | Result |
+|---|---:|
+| Canonical families | 5 |
+| Total candidate cases | 25 |
+| Original cases | 5 |
+| Paraphrase / lay-language / distractor cases | 5 / 5 / 5 |
+| Directional / abstention cases | 1 / 4 |
+| Preserving-reference checks | 15/15 |
+| Duplicate normalized questions | 0 |
+| Safety-critical families | 5/5 |
+| Dataset fingerprint | `4f1a5e0ccd8af9ce` |
+
+The pilot caught failures that a JSON-schema-only check would have missed:
+
+- An abstention variant omitted required reference and critical-change fields.
+- Several distractors added clinical facts such as allergy history, exercise,
+  or blood pressure.
+- A lay-language rewrite dropped a race attribute from the source question.
+- A distractor added a date, and an insufficient-information answer was
+  mislabeled as a directional test.
+
+Changes made from those failures:
+
+- Retry semantically invalid JSON with the exact validation error and previous
+  payload while retaining per-family checkpoints.
+- Require preserving variants to retain all numeric and protected demographic
+  surface facts.
+- Reject distractors that introduce clinical details, dates, identifiers, or
+  extra numeric facts.
+- Enforce consistency between directional/abstention labels and the expected
+  reference behavior.
+
+The final pilot is stored at
+`graphrag/eval/data/robustness_preview.json`. Its cases remain marked for human
+review: this engineering inspection verifies the test transformation contract,
+not independent clinician approval of the underlying medical references. No
+Agent robustness metric is reported yet.
 
 ## Metrics by System Stage
 

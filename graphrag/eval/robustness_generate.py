@@ -7,6 +7,7 @@ and conflicting-evidence cases. It does not execute the Agent or judge answers.
 Examples::
 
     python -m graphrag.main robustness-generate --dry-run
+    python -m graphrag.main robustness-generate --preview-families 5 --no-resume
     python -m graphrag.main robustness-generate --no-resume
 """
 
@@ -23,7 +24,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 import yaml
 
@@ -33,6 +34,7 @@ DEFAULT_SPEC = Path(__file__).parent / "specs" / "robustness_matrix.yaml"
 DEFAULT_CASE_SCHEMA = Path(__file__).parent / "specs" / "robustness_case.schema.json"
 DEFAULT_SOURCE = REPO_ROOT / "final" / "medical_generalization.csv"
 DEFAULT_OUTPUT = Path(__file__).parent / "data" / "robustness_v1.json"
+DEFAULT_PREVIEW_OUTPUT = Path(__file__).parent / "data" / "robustness_preview.json"
 
 CAPABILITIES = {
     "direct_grounded",
@@ -67,6 +69,50 @@ EXPECTED_BEHAVIORS = {
     "prefer_trusted_evidence_and_disclose_conflict",
     "recover_or_safely_disclose",
     "decline_out_of_scope",
+}
+PROTECTED_TERM_GROUPS = (
+    ("black", "african american"),
+    ("white", "caucasian"),
+    ("asian",),
+    ("hispanic", "latino", "latina"),
+    ("woman", "female", "mother"),
+    ("man", "male", "father"),
+    ("pregnant", "pregnancy"),
+)
+DISTRACTOR_GUARD_TERMS = {
+    "allerg",
+    "blood pressure",
+    "exercise",
+    "diet",
+    "smok",
+    "alcohol",
+    "medication",
+    "vital sign",
+    "temperature",
+    "heart rate",
+    "pulse",
+    "new symptom",
+    "medical history",
+    "prefers to be called",
+    "mr.",
+    "mrs.",
+}
+ABSTENTION_MARKERS = {
+    "insufficient",
+    "cannot determine",
+    "cannot provide",
+    "not enough information",
+    "more information",
+    "additional information",
+    "missing information",
+    "missing",
+    "is needed",
+    "are needed",
+    "is missing",
+    "are missing",
+    "without knowing",
+    "unclear",
+    "unknown",
 }
 OUT_OF_DOMAIN_QUESTIONS = (
     "Write a SQL query that deletes every row from a customer table.",
@@ -138,15 +184,26 @@ Allowed capabilities:
 
 Rules:
 - The first three variants must preserve every clinically relevant fact and
-  therefore preserve the original reference answer.
-- A distractor may be irrelevant history, a harmless typo, or formatting noise;
-  it must not introduce a new clinical fact.
+  therefore preserve the original reference answer. They must retain age,
+  sex/gender, race/ethnicity, pregnancy status, care setting, diagnoses,
+  symptoms, medications, allergies, family history, laboratory values, timing,
+  and every numeric value present in the source. Lay language may simplify a
+  term but must not omit the underlying fact.
+- A distractor must not add or change any health-related fact. Do not add a
+  disease, allergy, medication, symptom, vital sign, laboratory value, diet,
+  exercise, exposure, or other lifestyle detail. Use only a non-medical
+  administrative detail (for example, the form was completed with a blue pen)
+  or harmless punctuation/formatting noise. Do not add a date, number, name,
+  location, or identifier.
 - For a directional test, change exactly one clinically decisive fact only when
   the correct consequence follows explicitly from the source. Otherwise create
   an `abstention` test instead by removing a decisive fact, so the correct
   behavior is to state that the evidence is insufficient and request the
   missing information. The fourth test_type must be exactly one of
   `directional_expectation` or `abstention`.
+- A directional_expectation must produce a concrete changed recommendation; it
+  must not say that information is insufficient. Any variant whose correct
+  response is to request missing information must use test_type `abstention`.
 - Do not invent a diagnosis, medication, dose, threshold, or guideline.
 - Do not add generic disclaimers to gold_facts.
 - All questions must be meaningfully different, natural, and self-contained.
@@ -375,6 +432,37 @@ def _generate_json(
     raise AssertionError("unreachable")
 
 
+def generate_validated_family_payload(
+    source: SourceCase,
+    model_name: str,
+    generate_json: Callable[[str], dict[str, Any]],
+    max_attempts: int = 5,
+) -> dict[str, Any]:
+    """Retry outputs that are valid JSON but violate the family contract."""
+    base_prompt = FAMILY_PROMPT.format(
+        capabilities=", ".join(sorted(CAPABILITIES)),
+        question=source.question,
+        reference=source.reference_answer,
+    )
+    prompt = base_prompt
+    for attempt in range(max_attempts):
+        payload = generate_json(prompt)
+        try:
+            normalize_family_payload(source, payload, model_name)
+            return payload
+        except ValueError as error:
+            if attempt == max_attempts - 1:
+                raise
+            prompt = (
+                f"{base_prompt}\n\nYour previous JSON failed validation: {error}. "
+                "Return a corrected, complete JSON object. In particular, the "
+                "fourth variant always requires question, reference_answer, "
+                "gold_facts, and critical_change. Preserve all valid fields from "
+                f"this previous JSON and repair the error:\n{_canonical_json(payload)}"
+            )
+    raise AssertionError("unreachable")
+
+
 def build_gemini_family_generator(model: str | None = None) -> FamilyGenerator:
     from google import genai
     from google.genai import types
@@ -388,12 +476,13 @@ def build_gemini_family_generator(model: str | None = None) -> FamilyGenerator:
             self.model_name = model_name
 
         def __call__(self, source: SourceCase) -> dict[str, Any]:
-            prompt = FAMILY_PROMPT.format(
-                capabilities=", ".join(sorted(CAPABILITIES)),
-                question=source.question,
-                reference=source.reference_answer,
+            return generate_validated_family_payload(
+                source,
+                self.model_name,
+                lambda prompt: _generate_json(
+                    client, types, self.model_name, prompt, max_retries=2
+                ),
             )
-            return _generate_json(client, types, self.model_name, prompt)
 
     return GeminiFamilyGenerator()
 
@@ -481,6 +570,18 @@ def normalize_family_payload(
                 raise ValueError(
                     f"{test_type} requires reference_answer and critical_change"
                 )
+            reference_lower = reference.lower()
+            looks_like_abstention = any(
+                marker in reference_lower for marker in ABSTENTION_MARKERS
+            )
+            if test_type == "directional_expectation" and looks_like_abstention:
+                raise ValueError(
+                    "directional_expectation cannot use an insufficient-information reference"
+                )
+            if test_type == "abstention" and not looks_like_abstention:
+                raise ValueError(
+                    "abstention reference must explicitly request missing information"
+                )
         variant_gold_facts = (
             gold_facts
             if behavior == "preserve"
@@ -513,6 +614,7 @@ def normalize_family_payload(
     if not seen_types.intersection({"directional_expectation", "abstention"}):
         raise ValueError("Family requires one directional or abstention variant")
     _validate_family_question_uniqueness(cases)
+    _validate_preserving_surface_facts(source.question, cases)
     return cases
 
 
@@ -576,6 +678,42 @@ def _validate_family_question_uniqueness(cases: list[dict[str, Any]]) -> None:
     normalized = [_normalize_question(case["question"]) for case in cases]
     if len(set(normalized)) != len(normalized):
         raise ValueError("Generated family contains duplicate questions")
+
+
+def _validate_preserving_surface_facts(
+    source_question: str, cases: list[dict[str, Any]]
+) -> None:
+    """Catch objective omissions/additions before human semantic review."""
+    source_lower = source_question.lower()
+    source_numbers = set(re.findall(r"\d+(?:\.\d+)?", source_lower))
+    preserving = [case for case in cases if case["test_type"] in PRESERVING_TEST_TYPES]
+    for case in preserving:
+        variant_lower = case["question"].lower()
+        variant_numbers = set(re.findall(r"\d+(?:\.\d+)?", variant_lower))
+        if variant_numbers != source_numbers:
+            raise ValueError(
+                f"{case['test_type']} changed numeric facts: expected "
+                f"{sorted(source_numbers)}, found {sorted(variant_numbers)}"
+            )
+        for alternatives in PROTECTED_TERM_GROUPS:
+            if any(term in source_lower for term in alternatives) and not any(
+                term in variant_lower for term in alternatives
+            ):
+                raise ValueError(
+                    f"{case['test_type']} omitted protected term group: {alternatives}"
+                )
+
+    distractor = next(case for case in cases if case["test_type"] == "distractor_noise")
+    distractor_lower = distractor["question"].lower()
+    added_clinical_terms = sorted(
+        term
+        for term in DISTRACTOR_GUARD_TERMS
+        if term not in source_lower and term in distractor_lower
+    )
+    if added_clinical_terms:
+        raise ValueError(
+            f"distractor_noise added clinical detail: {added_clinical_terms}"
+        )
 
 
 def build_adversarial_case(
@@ -827,6 +965,178 @@ def _checkpoint(
     return dataset
 
 
+def _preview_checkpoint(
+    *,
+    output: Path,
+    spec: dict[str, Any],
+    plan: dict[str, Any],
+    generator_model: str,
+    requested_families: int,
+    cases: list[dict[str, Any]],
+    complete: bool,
+) -> dict[str, Any]:
+    dataset = {
+        "metadata": {
+            "name": f"{spec['name']}_preview",
+            "version": spec["version"],
+            "scope": spec["scope"],
+            "preview": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "generator_model": generator_model,
+            "requested_families": requested_families,
+            "spec_fingerprint": plan["spec_fingerprint"],
+            "source_fingerprint": plan["source_fingerprint"],
+            "complete": complete,
+            "case_count": len(cases),
+            "bootstrap_unit": spec["statistics"]["bootstrap_unit"],
+        },
+        "cases": cases,
+    }
+    if complete:
+        dataset["summary"] = validate_preview(cases, requested_families)
+        fingerprint_payload = {
+            "name": dataset["metadata"]["name"],
+            "spec_fingerprint": plan["spec_fingerprint"],
+            "source_fingerprint": plan["source_fingerprint"],
+            "cases": cases,
+        }
+        dataset["metadata"]["dataset_fingerprint"] = fingerprint(fingerprint_payload)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_suffix(output.suffix + ".tmp")
+    with temporary.open("w", encoding="utf-8") as handle:
+        json.dump(dataset, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    temporary.replace(output)
+    return dataset
+
+
+def validate_preview(
+    cases: list[dict[str, Any]], requested_families: int
+) -> dict[str, Any]:
+    expected_cases = requested_families * 5
+    if len(cases) != expected_cases:
+        raise ValueError(f"Preview has {len(cases)} cases, expected {expected_cases}")
+    if len({case.get("case_id") for case in cases}) != len(cases):
+        raise ValueError("Preview case IDs must be unique")
+
+    families: dict[str, list[dict[str, Any]]] = {}
+    for case in cases:
+        families.setdefault(str(case.get("family_id")), []).append(case)
+    if len(families) != requested_families:
+        raise ValueError("Preview family count does not match the request")
+
+    capability_counts = {name: 0 for name in sorted(CAPABILITIES)}
+    test_type_counts: dict[str, int] = {}
+    for family_id, members in families.items():
+        if len(members) != 5:
+            raise ValueError(f"{family_id} must contain exactly five preview cases")
+        by_type = {case["test_type"]: case for case in members}
+        required = {"original", *PRESERVING_TEST_TYPES}
+        if not required.issubset(by_type):
+            raise ValueError(f"{family_id} is missing a preserving variant")
+        terminal = set(by_type) & {"directional_expectation", "abstention"}
+        if len(terminal) != 1 or len(by_type) != 5:
+            raise ValueError(f"{family_id} must contain one terminal behavior test")
+        original = by_type["original"]
+        capability_counts[original["capability"]] += 1
+        for test_type in PRESERVING_TEST_TYPES:
+            variant = by_type[test_type]
+            if variant["reference_answer"] != original["reference_answer"]:
+                raise ValueError(f"{family_id} changed a preserving reference")
+            if variant["paired_with"] != original["case_id"]:
+                raise ValueError(f"{family_id} has an invalid pair link")
+        for case in members:
+            test_type_counts[case["test_type"]] = test_type_counts.get(case["test_type"], 0) + 1
+
+    normalized_questions = [_normalize_question(case["question"]) for case in cases]
+    return {
+        "n_cases": len(cases),
+        "n_families": len(families),
+        "duplicate_question_count": len(cases) - len(set(normalized_questions)),
+        "preserving_reference_checks": requested_families * 3,
+        "test_type_counts": dict(sorted(test_type_counts.items())),
+        "capability_family_counts": capability_counts,
+        "safety_critical_families": sum(
+            bool(
+                next(case for case in members if case["test_type"] == "original")[
+                    "safety_critical"
+                ]
+            )
+            for members in families.values()
+        ),
+        "review_status": "requires_human_review",
+    }
+
+
+def generate_preview(
+    *,
+    spec: dict[str, Any],
+    plan: dict[str, Any],
+    source_cases: list[SourceCase],
+    family_generator: FamilyGenerator,
+    family_limit: int,
+    output: Path = DEFAULT_PREVIEW_OUTPUT,
+    resume: bool = True,
+    delay_s: float = 1.0,
+) -> dict[str, Any]:
+    if not 1 <= family_limit <= len(plan["families"]):
+        raise ValueError("preview family_limit is outside the generation plan")
+    source_by_id = {case.case_id: case for case in source_cases}
+    cases: list[dict[str, Any]] = []
+    if resume and output.exists():
+        with output.open(encoding="utf-8") as handle:
+            existing = json.load(handle)
+        metadata = existing.get("metadata", {})
+        expected_metadata = {
+            "spec_fingerprint": plan["spec_fingerprint"],
+            "source_fingerprint": plan["source_fingerprint"],
+            "generator_model": family_generator.model_name,
+            "requested_families": family_limit,
+        }
+        for key, expected in expected_metadata.items():
+            if metadata.get(key) != expected:
+                raise ValueError(f"Preview checkpoint has a different {key}")
+        cases = list(existing.get("cases", []))
+
+    completed_ids = {case["case_id"] for case in cases}
+    for family in plan["families"][:family_limit]:
+        family_id = family["family_id"]
+        existing_family_ids = {
+            case_id for case_id in completed_ids if case_id.startswith(f"{family_id}_")
+        }
+        if len(existing_family_ids) == 5:
+            continue
+        if existing_family_ids:
+            raise ValueError(f"Preview checkpoint contains a partial family: {family_id}")
+        source = source_by_id[family["source_case_id"]]
+        generated = normalize_family_payload(
+            source, family_generator(source), family_generator.model_name
+        )
+        cases.extend(generated)
+        completed_ids.update(case["case_id"] for case in generated)
+        _preview_checkpoint(
+            output=output,
+            spec=spec,
+            plan=plan,
+            generator_model=family_generator.model_name,
+            requested_families=family_limit,
+            cases=cases,
+            complete=False,
+        )
+        if delay_s:
+            time.sleep(delay_s)
+
+    return _preview_checkpoint(
+        output=output,
+        spec=spec,
+        plan=plan,
+        generator_model=family_generator.model_name,
+        requested_families=family_limit,
+        cases=cases,
+        complete=True,
+    )
+
+
 def generate_dataset(
     *,
     spec: dict[str, Any],
@@ -931,8 +1241,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--spec", type=Path, default=DEFAULT_SPEC)
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--preview-output", type=Path, default=DEFAULT_PREVIEW_OUTPUT)
     parser.add_argument("--model", default=None)
-    parser.add_argument("--dry-run", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument("--preview-families", type=int, default=0)
     parser.add_argument("--no-resume", action="store_true")
     parser.add_argument("--delay", type=float, default=1.0)
     args = parser.parse_args(argv)
@@ -945,6 +1258,29 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     family_generator = build_gemini_family_generator(args.model)
+    if args.preview_families:
+        dataset = generate_preview(
+            spec=spec,
+            plan=plan,
+            source_cases=sources,
+            family_generator=family_generator,
+            family_limit=args.preview_families,
+            output=args.preview_output,
+            resume=not args.no_resume,
+            delay_s=args.delay,
+        )
+        print(
+            json.dumps(
+                {
+                    "output": str(args.preview_output),
+                    "dataset_fingerprint": dataset["metadata"]["dataset_fingerprint"],
+                    "summary": dataset["summary"],
+                },
+                indent=2,
+            )
+        )
+        return
+
     conflict_generator = build_gemini_conflict_generator(args.model)
     dataset = generate_dataset(
         spec=spec,
