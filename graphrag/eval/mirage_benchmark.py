@@ -45,6 +45,9 @@ DEFAULT_OUTPUT = Path(__file__).parent / "external" / "mirage" / "results.json"
 DEFAULT_TEXTBOOKS_OUTPUT = (
     Path(__file__).parent / "external" / "mirage" / "textbooks_results.json"
 )
+DEFAULT_TEXTBOOKS_AGENT_OUTPUT = (
+    Path(__file__).parent / "external" / "mirage" / "textbooks_agent_results.json"
+)
 MODEL_PRICING_USD_PER_MILLION = {
     "gemini-2.5-flash": {
         "input": 0.30,
@@ -54,6 +57,11 @@ MODEL_PRICING_USD_PER_MILLION = {
         "tier": "paid",
     }
 }
+
+TEXTBOOKS_GENERATION_INSTRUCTION = """You are a helpful medical expert answering
+a multiple-choice medical question using the relevant documents. Think through
+the evidence and choose a definite answer from the provided options. Return JSON
+with keys `step_by_step_thinking` and `answer_choice`."""
 
 
 @dataclass(frozen=True)
@@ -89,6 +97,8 @@ class SystemResult:
     retrieved_ids: list[str] = field(default_factory=list)
     retrieval_latency_s: float = 0.0
     context_count: int = 0
+    validation_verdicts: list[str] = field(default_factory=list)
+    reflection_approved: bool = False
 
 
 SystemRunner = Callable[[MirageCase], Mapping[str, Any]]
@@ -337,6 +347,12 @@ def build_agent_runner() -> SystemRunner:
                 candidate_answers=[],
                 validation_verdicts=[],
                 status="running",
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+                retrieved_ids=[],
+                retrieval_latency_s=0.0,
+                context_count=0,
             ),
             config={
                 "recursion_limit": 20,
@@ -352,10 +368,7 @@ def build_agent_runner() -> SystemRunner:
         )
         messages = state.get("messages", [])
         tool_messages = [item for item in messages if isinstance(item, ToolMessage)]
-        usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-        for message in messages:
-            for key, value in _usage(message).items():
-                usage[key] += value
+        verdicts = list(state.get("validation_verdicts", []))
         return {
             "answer": state.get("final_answer", ""),
             "status": state.get("status", "unknown"),
@@ -366,8 +379,17 @@ def build_agent_runner() -> SystemRunner:
                 if "Tool unavailable" in _content_text(item.content)
             ],
             "retry_count": int(state.get("retry_count", 0)),
+            "validation_verdicts": verdicts,
+            "reflection_approved": any(
+                verdict.startswith("APPROVED") for verdict in verdicts
+            ),
+            "retrieved_ids": list(state.get("retrieved_ids", [])),
+            "retrieval_latency_s": float(state.get("retrieval_latency_s", 0.0)),
+            "context_count": int(state.get("context_count", 0)),
             "trace_id": str(trace_id),
-            **usage,
+            "input_tokens": int(state.get("input_tokens", 0)),
+            "output_tokens": int(state.get("output_tokens", 0)),
+            "total_tokens": int(state.get("total_tokens", 0)),
         }
 
     return run
@@ -402,6 +424,123 @@ def build_textbooks_rag_runner(
     return run
 
 
+def _format_textbook_context(snippets: list[Any]) -> str:
+    return "\n\n".join(
+        f"Document [{position}] (Title: {snippet.title}) {snippet.content}"
+        for position, snippet in enumerate(snippets, start=1)
+    )
+
+
+def _build_textbooks_retrieval_tool(retriever: Any, top_k: int) -> Any:
+    """Create an artifact-producing LangChain tool over the matched corpus."""
+    from langchain_core.tools import tool
+
+    @tool("retrieve_textbooks_bm25", response_format="content_and_artifact")
+    def retrieve_textbooks_bm25(query: str) -> tuple[str, dict[str, Any]]:
+        """Retrieve top medical textbook passages for a question-only query."""
+        started = time.perf_counter()
+        snippets = retriever.retrieve(query, k=top_k)
+        latency = time.perf_counter() - started
+        content = _format_textbook_context(snippets)
+        if not content:
+            content = "No relevant textbook passages found."
+        return content, {
+            "retrieved_ids": [snippet.snippet_id for snippet in snippets],
+            "retrieval_latency_s": latency,
+            "context_count": len(snippets),
+        }
+
+    return retrieve_textbooks_bm25
+
+
+def build_textbooks_agent_runner(
+    index_path: Path, top_k: int = 8, model: str | None = None
+) -> SystemRunner:
+    """Build a LangGraph Agent over the same Textbooks BM25 configuration."""
+    from langchain_core.messages import ToolMessage
+    from graphrag.agent.react_agent import AgentState, RetrievalStep, build_agent
+    from graphrag.config import GEMINI_MODEL
+    from graphrag.eval.mirage_corpus import TextbooksBM25Retriever
+
+    retriever = TextbooksBM25Retriever(index_path)
+    retrieval_tool = _build_textbooks_retrieval_tool(retriever, top_k)
+    retrieval_step = RetrievalStep(
+        tool_name="retrieve_textbooks_bm25",
+        build_args=lambda query: {"query": query},
+        instruction="Retrieve the textbook evidence exactly once before answering.",
+    )
+    graph = build_agent(
+        tools=[retrieval_tool],
+        retrieval_steps=(retrieval_step,),
+        system_prompt=TEXTBOOKS_GENERATION_INSTRUCTION,
+        enable_safety=False,
+        allow_optional_tool_calls=False,
+        max_tool_calls=1,
+        model=model or GEMINI_MODEL,
+    )
+
+    def run(case: MirageCase) -> Mapping[str, Any]:
+        trace_id = uuid.uuid4()
+        state = graph.invoke(
+            AgentState(
+                query=case.answer_query,
+                retrieval_query=case.retrieval_query,
+                messages=[],
+                retrieved_context=[],
+                retry_count=0,
+                final_answer="",
+                candidate_answers=[],
+                validation_verdicts=[],
+                status="running",
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+                retrieved_ids=[],
+                retrieval_latency_s=0.0,
+                context_count=0,
+            ),
+            config={
+                "recursion_limit": 20,
+                "run_id": trace_id,
+                "run_name": "medical-mirage-textbooks-agent-case",
+                "tags": ["stage-5g", "mirage", "textbooks-agent", case.dataset],
+                "metadata": {
+                    "evaluation_type": "external_medical_mirage",
+                    "case_id": case.case_id,
+                    "question_only_retrieval": True,
+                    "generation_model": model or GEMINI_MODEL,
+                },
+            },
+        )
+        messages = state.get("messages", [])
+        tool_messages = [item for item in messages if isinstance(item, ToolMessage)]
+        verdicts = list(state.get("validation_verdicts", []))
+        return {
+            "answer": state.get("final_answer", ""),
+            "status": state.get("status", "unknown"),
+            "tool_names": [item.name for item in tool_messages if item.name],
+            "tool_errors": [
+                _content_text(item.content)
+                for item in tool_messages
+                if "Tool unavailable" in _content_text(item.content)
+            ],
+            "retry_count": int(state.get("retry_count", 0)),
+            "validation_verdicts": verdicts,
+            "reflection_approved": any(
+                verdict.startswith("APPROVED") for verdict in verdicts
+            ),
+            "retrieved_ids": list(state.get("retrieved_ids", [])),
+            "retrieval_latency_s": float(state.get("retrieval_latency_s", 0.0)),
+            "context_count": int(state.get("context_count", 0)),
+            "input_tokens": int(state.get("input_tokens", 0)),
+            "output_tokens": int(state.get("output_tokens", 0)),
+            "total_tokens": int(state.get("total_tokens", 0)),
+            "trace_id": str(trace_id),
+        }
+
+    return run
+
+
 def _run_textbooks_rag_case(
     case: MirageCase,
     retriever: Any,
@@ -413,15 +552,10 @@ def _run_textbooks_rag_case(
     retrieval_started = time.perf_counter()
     snippets = retriever.retrieve(case.retrieval_query, k=top_k)
     retrieval_latency = time.perf_counter() - retrieval_started
-    context = "\n\n".join(
-        f"Document [{position}] (Title: {snippet.title}) {snippet.content}"
-        for position, snippet in enumerate(snippets, start=1)
-    )
+    context = _format_textbook_context(snippets)
     prompt = (
-        "You are a helpful medical expert answering a multiple-choice medical "
-        "question using the relevant documents. Think through the evidence and "
-        "choose a definite answer from the provided options. Return JSON with "
-        'keys "step_by_step_thinking" and "answer_choice".\n\n'
+        TEXTBOOKS_GENERATION_INSTRUCTION
+        + "\n\n"
         f"Relevant documents:\n{context}\n\n{case.answer_query}"
     )
     response = llm.invoke([human_message_class(content=prompt)])
@@ -533,6 +667,16 @@ def summarize_system(
             result.context_count for result in results
         )
         if results and any("retrieve_textbooks_bm25" in result.tool_names for result in results)
+        else None,
+        "reflection_approval_rate": statistics.fmean(
+            float(result.reflection_approved) for result in results
+        )
+        if results and any(result.validation_verdicts for result in results)
+        else None,
+        "average_retry_count": statistics.fmean(
+            result.retry_count for result in results
+        )
+        if results and any(result.validation_verdicts for result in results)
         else None,
         "per_dataset": per_dataset,
     }
@@ -724,6 +868,10 @@ def run_benchmark(
         parser_changed = saved.get("answer_parser_version") != ANSWER_PARSER_VERSION
         for item in saved.get("results", []):
             result = SystemResult(**item)
+            # Preserve completed paid calls, but allow transient provider errors
+            # to be retried on resume instead of becoming permanent outcomes.
+            if result.error:
+                continue
             if parser_changed and result.case_id in case_by_id and not result.error:
                 case = case_by_id[result.case_id]
                 result.prediction = parse_answer_choice(
@@ -774,6 +922,8 @@ def run_benchmark(
                 retrieved_ids=list(output.get("retrieved_ids", [])),
                 retrieval_latency_s=float(output.get("retrieval_latency_s", 0.0)),
                 context_count=int(output.get("context_count", 0)),
+                validation_verdicts=list(output.get("validation_verdicts", [])),
+                reflection_approved=bool(output.get("reflection_approved", False)),
             )
             results.append(result)
             report = _report(
@@ -848,7 +998,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--systems",
         nargs="+",
-        choices=("closed-book", "current-agent", "textbooks-rag"),
+        choices=(
+            "closed-book",
+            "current-agent",
+            "textbooks-rag",
+            "textbooks-agent",
+        ),
         default=("closed-book", "current-agent"),
     )
     args = parser.parse_args(argv)
@@ -889,7 +1044,21 @@ def main(argv: list[str] | None = None) -> None:
                 "top_k": args.textbooks_top_k,
                 "index": index_metadata(args.textbooks_index),
             }
-    if "textbooks-rag" in args.systems and args.output == DEFAULT_OUTPUT:
+        elif system == "textbooks-agent":
+            runners[system] = build_textbooks_agent_runner(
+                args.textbooks_index, args.textbooks_top_k, GEMINI_MODEL
+            )
+            system_metadata[system] = {
+                "corpus": "MedRAG/textbooks",
+                "retriever": "sqlite-fts5-bm25",
+                "top_k": args.textbooks_top_k,
+                "index": index_metadata(args.textbooks_index),
+                "orchestrator": "LangGraph reason/act/validate",
+                "max_reflection_retries": 3,
+            }
+    if "textbooks-agent" in args.systems and args.output == DEFAULT_OUTPUT:
+        args.output = DEFAULT_TEXTBOOKS_AGENT_OUTPUT
+    elif "textbooks-rag" in args.systems and args.output == DEFAULT_OUTPUT:
         args.output = DEFAULT_TEXTBOOKS_OUTPUT
     report = run_benchmark(
         cases,

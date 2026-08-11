@@ -2,10 +2,12 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from graphrag.eval.mirage_benchmark import (
     DATASET_ORDER,
     MirageCase,
+    _build_textbooks_retrieval_tool,
     _run_textbooks_rag_case,
     load_benchmark,
     paired_comparison,
@@ -70,6 +72,100 @@ class MirageBenchmarkTests(unittest.TestCase):
         self.assertNotIn("SECRET OPTION", queries[0][0])
         self.assertIn("SECRET OPTION", prompts[0])
         self.assertEqual(result["retrieved_ids"], ["doc-1"])
+
+    def test_textbooks_agent_injects_same_retriever_and_tracks_reflection(self):
+        from langchain_core.messages import AIMessage, ToolMessage
+        from graphrag.agent.react_agent import AgentState, RetrievalStep, build_agent
+        from graphrag.eval.mirage_corpus import TextbookSnippet
+
+        queries = []
+        prompts = []
+
+        class Retriever:
+            def retrieve(self, query, k):
+                queries.append((query, k))
+                return [TextbookSnippet("doc-1", "Title", "Evidence", 1.0)]
+
+        class FakeLLM:
+            def __init__(self, **kwargs):
+                pass
+
+            def bind_tools(self, tools):
+                return self
+
+            def invoke(self, messages):
+                prompt = messages[0].content
+                prompts.append(prompt)
+                if prompt.startswith("Review this medical answer"):
+                    return AIMessage(
+                        content="APPROVED: supported by the textbook",
+                        usage_metadata={
+                            "input_tokens": 3,
+                            "output_tokens": 1,
+                            "total_tokens": 4,
+                        },
+                    )
+                return AIMessage(
+                    content='{"answer_choice":"A"}',
+                    usage_metadata={
+                        "input_tokens": 5,
+                        "output_tokens": 2,
+                        "total_tokens": 7,
+                    },
+                )
+
+        retrieval_tool = _build_textbooks_retrieval_tool(Retriever(), 8)
+        retrieval_step = RetrievalStep(
+            tool_name="retrieve_textbooks_bm25",
+            build_args=lambda query: {"query": query},
+            instruction="Retrieve once.",
+        )
+        with patch("graphrag.agent.react_agent.ChatGoogleGenerativeAI", FakeLLM):
+            graph = build_agent(
+                tools=[retrieval_tool],
+                retrieval_steps=(retrieval_step,),
+                system_prompt="Answer the benchmark question.",
+                enable_safety=False,
+                allow_optional_tool_calls=False,
+                max_tool_calls=1,
+                model="fake-model",
+            )
+            state = graph.invoke(
+                AgentState(
+                    query="Pure medical question?\nA. SECRET OPTION\nB. Other",
+                    retrieval_query="Pure medical question?",
+                    messages=[],
+                    retrieved_context=[],
+                    retry_count=0,
+                    final_answer="",
+                    candidate_answers=[],
+                    validation_verdicts=[],
+                    status="running",
+                    input_tokens=0,
+                    output_tokens=0,
+                    total_tokens=0,
+                    retrieved_ids=[],
+                    retrieval_latency_s=0.0,
+                    context_count=0,
+                )
+            )
+
+        tool_messages = [
+            message for message in state["messages"] if isinstance(message, ToolMessage)
+        ]
+        self.assertEqual(queries, [("Pure medical question?", 8)])
+        self.assertNotIn("SECRET OPTION", queries[0][0])
+        self.assertTrue(any("SECRET OPTION" in prompt for prompt in prompts))
+        self.assertEqual(
+            [message.name for message in tool_messages],
+            ["retrieve_textbooks_bm25"],
+        )
+        self.assertEqual(state["retrieved_ids"], ["doc-1"])
+        self.assertEqual(state["context_count"], 1)
+        self.assertEqual(state["status"], "approved")
+        self.assertEqual(state["input_tokens"], 8)
+        self.assertEqual(state["output_tokens"], 3)
+        self.assertEqual(state["total_tokens"], 11)
 
     def test_load_and_stratify_separates_retrieval_from_options(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -143,6 +239,25 @@ class MirageBenchmarkTests(unittest.TestCase):
                 resume=True,
             )
             self.assertEqual(resumed["metrics"]["closed-book"]["accuracy"], 1.0)
+
+            saved = json.loads(output.read_text(encoding="utf-8"))
+            saved["results"][0]["error"] = "ServerError: transient timeout"
+            output.write_text(json.dumps(saved), encoding="utf-8")
+            retry_calls = []
+
+            def retry_error_only(case):
+                retry_calls.append(case.case_id)
+                return {"answer": '{"answer_choice":"' + case.answer + '"}'}
+
+            run_benchmark(
+                cases,
+                {"closed-book": retry_error_only},
+                output,
+                source,
+                generation_model="fake-model",
+                resume=True,
+            )
+            self.assertEqual(retry_calls, [cases[0].case_id])
 
     def test_imports_compatible_results_without_repeating_model_calls(self):
         with tempfile.TemporaryDirectory() as directory:

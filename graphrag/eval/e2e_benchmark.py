@@ -178,6 +178,9 @@ def build_langgraph_runner() -> AgentRunner:
                 candidate_answers=[],
                 validation_verdicts=[],
                 status="running",
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
             ),
             config={
                 "recursion_limit": 20,
@@ -212,6 +215,9 @@ def build_langgraph_runner() -> AgentRunner:
             "retry_count": int(state.get("retry_count", 0)),
             "status": state.get("status", "unknown"),
             "validation_verdicts": list(state.get("validation_verdicts", [])),
+            "input_tokens": int(state.get("input_tokens", 0)),
+            "output_tokens": int(state.get("output_tokens", 0)),
+            "total_tokens": int(state.get("total_tokens", 0)),
             "trace_id": str(trace_id),
         }
 

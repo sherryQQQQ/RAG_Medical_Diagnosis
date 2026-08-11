@@ -20,7 +20,8 @@ Usage:
 import operator
 import json
 import uuid
-from typing import Annotated, NotRequired, TypedDict
+from dataclasses import dataclass
+from typing import Annotated, Any, Callable, NotRequired, TypedDict
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -73,6 +74,35 @@ Reply with ONLY one of:
 """
 
 
+@dataclass(frozen=True)
+class RetrievalStep:
+    """A required retrieval tool call with deterministic benchmark-safe args."""
+
+    tool_name: str
+    build_args: Callable[[str], dict[str, Any]]
+    instruction: str
+
+
+DEFAULT_RETRIEVAL_STEPS = (
+    RetrievalStep(
+        tool_name="retrieve_graph",
+        build_args=lambda query: {"symptoms": json.dumps([query])},
+        instruction=(
+            "Next step: call retrieve_graph exactly once. Extract the patient's "
+            "specific symptoms, diagnoses, or conditions as the JSON list argument."
+        ),
+    ),
+    RetrievalStep(
+        tool_name="retrieve_vector",
+        build_args=lambda query: {"query": query},
+        instruction=(
+            "Next step: call retrieve_vector exactly once using the full patient "
+            "query. This is required even if the graph result was empty."
+        ),
+    ),
+)
+
+
 # ---------- State -------------------------------------------------------------
 
 class AgentState(TypedDict):
@@ -87,6 +117,12 @@ class AgentState(TypedDict):
     candidate_answers: Annotated[list[str], operator.add]
     validation_verdicts: Annotated[list[str], operator.add]
     status: str
+    input_tokens: NotRequired[int]
+    output_tokens: NotRequired[int]
+    total_tokens: NotRequired[int]
+    retrieved_ids: NotRequired[list[str]]
+    retrieval_latency_s: NotRequired[float]
+    context_count: NotRequired[int]
 
 
 # ---------- Node functions ----------------------------------------------------
@@ -105,6 +141,22 @@ def _content_to_text(content) -> str:
     return str(content)
 
 
+def _message_usage(message: Any) -> dict[str, int]:
+    usage = getattr(message, "usage_metadata", None) or {}
+    return {
+        "input_tokens": int(usage.get("input_tokens", 0) or 0),
+        "output_tokens": int(usage.get("output_tokens", 0) or 0),
+        "total_tokens": int(usage.get("total_tokens", 0) or 0),
+    }
+
+
+def _usage_update(state: AgentState, message: Any) -> dict[str, int]:
+    usage = _message_usage(message)
+    return {
+        key: int(state.get(key, 0)) + value for key, value in usage.items()
+    }
+
+
 def _used_tool_names(state: AgentState) -> list[str]:
     return [
         msg.name
@@ -117,20 +169,17 @@ def _retrieval_query(state: AgentState) -> str:
     return (state.get("retrieval_query") or state["query"]).strip()
 
 
-def _next_step_instruction(state: AgentState) -> str:
-    """Keep the ReAct loop bounded: graph once, vector once, then answer."""
+def _next_step_instruction(
+    state: AgentState,
+    retrieval_steps: tuple[RetrievalStep, ...] = DEFAULT_RETRIEVAL_STEPS,
+    enable_safety: bool = True,
+) -> str:
+    """Keep the ReAct loop bounded: required retrieval, then an answer."""
     used_tools = _used_tool_names(state)
-    if "retrieve_graph" not in used_tools:
-        return (
-            "Next step: call retrieve_graph exactly once. Extract the patient's "
-            "specific symptoms, diagnoses, or conditions as the JSON list argument."
-        )
-    if "retrieve_vector" not in used_tools:
-        return (
-            "Next step: call retrieve_vector exactly once using the full patient "
-            "query. This is required even if the graph result was empty."
-        )
-    if "check_contraindications" not in used_tools:
+    for step in retrieval_steps:
+        if step.tool_name not in used_tools:
+            return step.instruction
+    if enable_safety and "check_contraindications" not in used_tools:
         return (
             "If you will recommend a named drug, call check_contraindications at "
             "most once. Otherwise stop using tools and write the final answer."
@@ -138,30 +187,23 @@ def _next_step_instruction(state: AgentState) -> str:
     return "Stop using tools and write the final answer grounded only in retrieved context."
 
 
-def _mandatory_retrieval_call(state: AgentState) -> AIMessage | None:
+def _mandatory_retrieval_call(
+    state: AgentState,
+    retrieval_steps: tuple[RetrievalStep, ...] = DEFAULT_RETRIEVAL_STEPS,
+) -> AIMessage | None:
     """Enforce grounding tools in code instead of relying on prompt compliance."""
     used_tools = _used_tool_names(state)
     retrieval_query = _retrieval_query(state)
-    if "retrieve_graph" not in used_tools:
+    for step in retrieval_steps:
+        if step.tool_name in used_tools:
+            continue
         return AIMessage(
             content="",
             tool_calls=[
                 {
-                    "name": "retrieve_graph",
-                    "args": {"symptoms": json.dumps([retrieval_query])},
-                    "id": f"graph-{uuid.uuid4().hex}",
-                    "type": "tool_call",
-                }
-            ],
-        )
-    if "retrieve_vector" not in used_tools:
-        return AIMessage(
-            content="",
-            tool_calls=[
-                {
-                    "name": "retrieve_vector",
-                    "args": {"query": retrieval_query},
-                    "id": f"vector-{uuid.uuid4().hex}",
+                    "name": step.tool_name,
+                    "args": step.build_args(retrieval_query),
+                    "id": f"{step.tool_name}-{uuid.uuid4().hex}",
                     "type": "tool_call",
                 }
             ],
@@ -193,25 +235,40 @@ def _mandatory_safety_call(state: AgentState, draft: AIMessage) -> AIMessage | N
     )
 
 
-def reason_node(state: AgentState) -> dict:
+def reason_node(
+    state: AgentState,
+    *,
+    tools: list[Any] | None = None,
+    retrieval_steps: tuple[RetrievalStep, ...] = DEFAULT_RETRIEVAL_STEPS,
+    system_prompt: str = SYSTEM_PROMPT,
+    enable_safety: bool = True,
+    allow_optional_tool_calls: bool = True,
+    max_tool_calls: int = MAX_TOOL_CALLS,
+    model: str = GEMINI_MODEL,
+) -> dict:
     """LLM decides: call a tool or produce final answer."""
-    mandatory_call = _mandatory_retrieval_call(state)
+    effective_tools = TOOLS if tools is None else tools
+    mandatory_call = _mandatory_retrieval_call(state, retrieval_steps)
     if mandatory_call is not None:
         return {"messages": [mandatory_call], "status": "retrieving"}
 
     llm = ChatGoogleGenerativeAI(
-        model=GEMINI_MODEL,
+        model=model,
         google_api_key=GOOGLE_API_KEY,
         temperature=0,
         request_timeout=GEMINI_REQUEST_TIMEOUT_S,
         retries=GEMINI_MAX_RETRIES,
-    ).bind_tools(TOOLS)
+    )
+    if allow_optional_tool_calls:
+        llm = llm.bind_tools(effective_tools)
 
-    phase_instruction = _next_step_instruction(state)
+    phase_instruction = _next_step_instruction(
+        state, retrieval_steps, enable_safety
+    )
     messages = [
         HumanMessage(
             content=(
-                SYSTEM_PROMPT
+                system_prompt
                 + "\n\n"
                 + phase_instruction
                 + "\n\nPatient query: "
@@ -221,11 +278,18 @@ def reason_node(state: AgentState) -> dict:
     ]
     messages.extend(state["messages"])
     response: AIMessage = llm.invoke(messages)
-    safety_call = _mandatory_safety_call(state, response)
+    usage_update = _usage_update(state, response)
+    safety_call = (
+        _mandatory_safety_call(state, response) if enable_safety else None
+    )
     if safety_call is not None:
-        return {"messages": [safety_call], "status": "safety_checking"}
+        return {
+            "messages": [safety_call],
+            "status": "safety_checking",
+            **usage_update,
+        }
     used_count = len(_used_tool_names(state))
-    if response.tool_calls and used_count + len(response.tool_calls) > MAX_TOOL_CALLS:
+    if response.tool_calls and used_count + len(response.tool_calls) > max_tool_calls:
         return {
             "messages": [
                 AIMessage(
@@ -236,14 +300,16 @@ def reason_node(state: AgentState) -> dict:
                 )
             ],
             "status": "tool_limit_reached",
+            **usage_update,
         }
-    return {"messages": [response]}
+    return {"messages": [response], **usage_update}
 
 
-def act_node(state: AgentState) -> dict:
+def act_node(state: AgentState, tools: list[Any] | None = None) -> dict:
     """Execute tool calls from the last AI message."""
+    effective_tools = TOOLS if tools is None else tools
     tool_node = ToolNode(
-        TOOLS,
+        effective_tools,
         handle_tool_errors=lambda error: (
             f"Tool unavailable ({type(error).__name__}). Continue using the other "
             "retrieved evidence and explicitly disclose the missing check."
@@ -252,16 +318,28 @@ def act_node(state: AgentState) -> dict:
     result = tool_node.invoke(state)
     # Collect tool outputs as retrieved context
     new_context = []
+    retrieved_ids = list(state.get("retrieved_ids", []))
+    retrieval_latency_s = float(state.get("retrieval_latency_s", 0.0))
+    context_count = int(state.get("context_count", 0))
     for msg in result.get("messages", []):
         if isinstance(msg, ToolMessage):
             new_context.append(_content_to_text(msg.content))
+            artifact = msg.artifact if isinstance(msg.artifact, dict) else {}
+            retrieved_ids.extend(
+                str(value) for value in artifact.get("retrieved_ids", [])
+            )
+            retrieval_latency_s += float(artifact.get("retrieval_latency_s", 0.0))
+            context_count += int(artifact.get("context_count", 0))
     return {
         "messages": result["messages"],
         "retrieved_context": state["retrieved_context"] + new_context,
+        "retrieved_ids": retrieved_ids,
+        "retrieval_latency_s": retrieval_latency_s,
+        "context_count": context_count,
     }
 
 
-def validate_node(state: AgentState) -> dict:
+def validate_node(state: AgentState, model: str = GEMINI_MODEL) -> dict:
     """Self-critique: check if final answer is grounded in retrieved context."""
     # Extract last AI text response as candidate answer
     last_ai = next(
@@ -279,11 +357,11 @@ def validate_node(state: AgentState) -> dict:
     # Put the most recent safety evidence first and cap each tool independently;
     # otherwise one long vector result can truncate later contraindication output.
     context_summary = "\n---\n".join(
-        context[:2500] for context in reversed(state["retrieved_context"][-6:])
+        context[:8000] for context in reversed(state["retrieved_context"][-6:])
     )
 
     llm = ChatGoogleGenerativeAI(
-        model=GEMINI_MODEL,
+        model=model,
         google_api_key=GOOGLE_API_KEY,
         temperature=0,
         request_timeout=GEMINI_REQUEST_TIMEOUT_S,
@@ -296,10 +374,12 @@ def validate_node(state: AgentState) -> dict:
     )
     validation_response = llm.invoke([HumanMessage(content=validation_prompt)])
     verdict = _content_to_text(validation_response.content).strip()
+    usage_update = _usage_update(state, validation_response)
 
     validation_update = {
         "candidate_answers": [candidate],
         "validation_verdicts": [verdict],
+        **usage_update,
     }
     if verdict.startswith("APPROVED"):
         return {
@@ -348,12 +428,34 @@ def route_after_validate(state: AgentState) -> str:
 
 # ---------- Graph assembly ----------------------------------------------------
 
-def build_agent():
+def build_agent(
+    *,
+    tools: list[Any] | None = None,
+    retrieval_steps: tuple[RetrievalStep, ...] = DEFAULT_RETRIEVAL_STEPS,
+    system_prompt: str = SYSTEM_PROMPT,
+    enable_safety: bool = True,
+    allow_optional_tool_calls: bool = True,
+    max_tool_calls: int = MAX_TOOL_CALLS,
+    model: str = GEMINI_MODEL,
+):
+    effective_tools = TOOLS if tools is None else tools
     graph = StateGraph(AgentState)
 
-    graph.add_node("reason", reason_node)
-    graph.add_node("act", act_node)
-    graph.add_node("validate", validate_node)
+    graph.add_node(
+        "reason",
+        lambda state: reason_node(
+            state,
+            tools=effective_tools,
+            retrieval_steps=retrieval_steps,
+            system_prompt=system_prompt,
+            enable_safety=enable_safety,
+            allow_optional_tool_calls=allow_optional_tool_calls,
+            max_tool_calls=max_tool_calls,
+            model=model,
+        ),
+    )
+    graph.add_node("act", lambda state: act_node(state, effective_tools))
+    graph.add_node("validate", lambda state: validate_node(state, model))
 
     graph.add_edge(START, "reason")
     graph.add_conditional_edges("reason", route_after_reason, {"act": "act", "validate": "validate"})

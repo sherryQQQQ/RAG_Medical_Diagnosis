@@ -657,10 +657,69 @@ not establish groundedness. A scaled evaluation should add judged evidence
 Recall@k or context sufficiency at retrieval, and citation/claim faithfulness at
 generation, while keeping exact answer accuracy as the end-to-end outcome.
 
-Stage 5G should inject the same Textbooks BM25 retriever into LangGraph, then
-compare `textbooks-rag` with `textbooks-agent` while holding the corpus, top-k,
-questions, and Gemini model fixed. That isolates whether planning/reflection adds
-quality worth its extra latency and token cost.
+### Stage 5G — Matched-Corpus Textbooks Agent Pilot
+
+Stage 5G injects the same Textbooks BM25 retriever into LangGraph and holds the
+corpus, top-k (8), questions, seed, and Gemini model fixed. The Agent performs one
+mandatory retrieval, generates an answer, and runs bounded reflection with up to
+three retries. The Reflector receives up to 8,000 characters per tool context.
+
+The Stage 5F report supplied all ten closed-book and all ten `textbooks-rag`
+results, so those twenty model calls were not repeated. Only the ten
+`textbooks-agent` cases were executed; a zero-token provider timeout was retried
+without repeating the nine completed Agent calls:
+
+~~~bash
+PYTHONUNBUFFERED=1 .venv.nosync/bin/python -m graphrag.main mirage-benchmark \
+  --limit 10 \
+  --seed 13 \
+  --systems closed-book textbooks-rag textbooks-agent \
+  --reuse-results-from graphrag/eval/external/mirage/textbooks_results.json
+~~~
+
+Final parser-v3 result:
+
+| Metric | Closed-book Gemini | Textbooks RAG | Textbooks Agent |
+|---|---:|---:|---:|
+| Exact-choice accuracy | 1.00 | 0.70 | 0.60 |
+| Wilson 95% CI | [0.722, 1.000] | [0.397, 0.892] | [0.313, 0.832] |
+| Invalid-choice rate | 0.00 | 0.00 | 0.20 |
+| Provider-error rate | 0.00 | 0.00 | 0.00 |
+| Non-empty retrieval | N/A | 1.00 | 1.00 |
+| Average retrieved contexts | N/A | 8.0 | 8.0 |
+| Average retrieval latency | N/A | 0.418 s | 0.404 s |
+| Reflection approval rate | N/A | N/A | 0.90 |
+| Average reflection retries | N/A | N/A | 0.50 |
+| p50 end-to-end latency | 2.66 s | 7.78 s | 14.32 s |
+| p95 end-to-end latency | 7.12 s | 16.88 s | 68.41 s |
+| Average total tokens | 891 | 3,550 | 10,720 |
+| Input / output tokens | 2,293 / 6,615 | 17,247 / 18,257 | 59,814 / 47,386 |
+| Estimated paid-tier cost | US$0.0172 (reused) | US$0.0508 (reused) | US$0.1364 (new) |
+
+Direct matched comparison with `textbooks-rag`:
+
+~~~text
+Textbooks-Agent wins  0
+Textbooks-RAG wins    1
+Ties                  9
+Accuracy delta       -0.10
+McNemar exact p       1.00
+~~~
+
+Against closed-book, the Agent had zero wins, four losses, six ties, an accuracy
+delta of -0.40, and McNemar exact p = 0.125. This ten-case execution pilot is too
+small for a stable quality claim, but it does not show a benefit from reflection:
+the Agent added no correct answers over matched RAG, used about 3.0x as many
+tokens, cost about 2.7x as much, and increased median latency by about 1.8x.
+
+The two invalid choices are informative rather than parser failures. When the
+textbook evidence did not cover an ovarian-torsion ligament question or the
+newer Sotrovimab/COVID-19 question, reflection approved an evidence-grounded
+refusal instead of the benchmark-required definite option. A third missing-
+evidence case selected `maybe`, which was valid for PubMedQA but wrong. Thus the
+Reflector improved caution but optimized groundedness against exact-choice task
+compliance; future work should explicitly define whether insufficient evidence
+requires abstention or a forced benchmark choice and score both behaviors.
 
 ## Metrics by System Stage
 
