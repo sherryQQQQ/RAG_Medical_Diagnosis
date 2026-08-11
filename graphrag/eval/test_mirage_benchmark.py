@@ -49,6 +49,7 @@ class MirageBenchmarkTests(unittest.TestCase):
         self.assertEqual(parse_answer_choice('{"answer_choice":"B"}', choices), "B")
         self.assertEqual(parse_answer_choice("Reasoning. FINAL_ANSWER: C", choices), "C")
         self.assertEqual(parse_answer_choice("**(A)**", choices), "A")
+        self.assertEqual(parse_answer_choice(r"The final answer is $\boxed{D}$", choices), "D")
         self.assertEqual(parse_answer_choice("Aspirin may help.", choices), "")
 
     def test_run_checkpoints_and_resume_reuses_paid_calls(self):
@@ -75,6 +76,12 @@ class MirageBenchmarkTests(unittest.TestCase):
             )
             self.assertEqual(report["metrics"]["closed-book"]["accuracy"], 1.0)
             self.assertEqual(len(calls), 5)
+
+            saved = json.loads(output.read_text(encoding="utf-8"))
+            saved["answer_parser_version"] = 1
+            saved["results"][0]["prediction"] = ""
+            saved["results"][0]["correct"] = False
+            output.write_text(json.dumps(saved), encoding="utf-8")
 
             def must_not_run(case):
                 raise AssertionError("resume repeated a paid call")

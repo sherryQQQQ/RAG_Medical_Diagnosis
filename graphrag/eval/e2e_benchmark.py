@@ -222,11 +222,20 @@ def build_gemini_judge(model: str | None = None) -> AnswerJudge:
     """Create a deterministic judge. The judge model is recorded in the report."""
     from langchain_core.messages import HumanMessage
     from langchain_google_genai import ChatGoogleGenerativeAI
-    from graphrag.config import GEMINI_MODEL, GOOGLE_API_KEY
+    from graphrag.config import (
+        GEMINI_MAX_RETRIES,
+        GEMINI_MODEL,
+        GEMINI_REQUEST_TIMEOUT_S,
+        GOOGLE_API_KEY,
+    )
 
     judge_model = model or os.getenv("EVAL_JUDGE_MODEL") or GEMINI_MODEL
     llm = ChatGoogleGenerativeAI(
-        model=judge_model, google_api_key=GOOGLE_API_KEY, temperature=0
+        model=judge_model,
+        google_api_key=GOOGLE_API_KEY,
+        temperature=0,
+        request_timeout=GEMINI_REQUEST_TIMEOUT_S,
+        retries=GEMINI_MAX_RETRIES,
     )
 
     def judge(question: str, reference: str, answer: str, context: list[str]) -> dict[str, Any]:

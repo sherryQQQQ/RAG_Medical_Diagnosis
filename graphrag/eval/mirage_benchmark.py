@@ -31,6 +31,7 @@ MIRAGE_URL = (
     "https://raw.githubusercontent.com/gzxiong/MIRAGE/main/benchmark.json"
 )
 MIRAGE_SHA256 = "6f7f08c64cd2efe02a5d0c247229813c90db345d9dd6e3a451b5d24146d0f8fa"
+ANSWER_PARSER_VERSION = 2
 DATASET_ORDER = ("mmlu", "medqa", "medmcqa", "pubmedqa", "bioasq")
 OFFICIAL_COUNTS = {
     "mmlu": 1089,
@@ -237,6 +238,11 @@ def parse_answer_choice(text: str, choices: set[str]) -> str:
     if valid:
         return valid[-1]
 
+    boxed = re.findall(r"(?i)\\?boxed\s*\{\s*([A-Z])\s*\}", text)
+    valid_boxed = [value.upper() for value in boxed if value.upper() in normalized_choices]
+    if valid_boxed:
+        return valid_boxed[-1]
+
     compact = re.sub(r"[`*_\s]", "", text).upper()
     match = re.fullmatch(r"\(?([A-Z])\)?[.)]?", compact)
     if match and match.group(1) in normalized_choices:
@@ -267,12 +273,19 @@ def _usage(message: Any) -> dict[str, int]:
 def build_closed_book_runner(model: str | None = None) -> SystemRunner:
     from langchain_core.messages import HumanMessage
     from langchain_google_genai import ChatGoogleGenerativeAI
-    from graphrag.config import GEMINI_MODEL, GOOGLE_API_KEY
+    from graphrag.config import (
+        GEMINI_MAX_RETRIES,
+        GEMINI_MODEL,
+        GEMINI_REQUEST_TIMEOUT_S,
+        GOOGLE_API_KEY,
+    )
 
     llm = ChatGoogleGenerativeAI(
         model=model or GEMINI_MODEL,
         google_api_key=GOOGLE_API_KEY,
         temperature=0,
+        request_timeout=GEMINI_REQUEST_TIMEOUT_S,
+        retries=GEMINI_MAX_RETRIES,
     )
 
     def run(case: MirageCase) -> Mapping[str, Any]:
@@ -490,6 +503,7 @@ def _report(
             },
         },
         "generation_model": generation_model,
+        "answer_parser_version": ANSWER_PARSER_VERSION,
         "systems": systems,
         "corpus_note": (
             "current-agent uses this project's small guideline FAISS/Neo4j corpus. "
@@ -525,10 +539,17 @@ def run_benchmark(
             raise ValueError("Existing checkpoint uses different systems")
         if saved.get("generation_model") != generation_model:
             raise ValueError("Existing checkpoint uses a different generation model")
-        previous = {
-            (item["case_id"], item["system"]): SystemResult(**item)
-            for item in saved.get("results", [])
-        }
+        case_by_id = {case.case_id: case for case in cases}
+        parser_changed = saved.get("answer_parser_version") != ANSWER_PARSER_VERSION
+        for item in saved.get("results", []):
+            result = SystemResult(**item)
+            if parser_changed and result.case_id in case_by_id and not result.error:
+                case = case_by_id[result.case_id]
+                result.prediction = parse_answer_choice(
+                    result.raw_answer, set(case.options)
+                )
+                result.correct = result.prediction == result.gold_choice
+            previous[(result.case_id, result.system)] = result
 
     results: list[SystemResult] = []
     total_calls = len(cases) * len(systems)

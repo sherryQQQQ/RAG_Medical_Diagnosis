@@ -19,7 +19,8 @@ medical device.
 | 4 | End-to-end evaluation and observability | Complete | Frozen 5-case run, independent judge, local traces |
 | 5A | Robustness dataset design | Complete | Versioned 550-case matrix, schema, offline dry-run |
 | 5B | Candidate-generation pilot | Complete | 5 families / 25 schema-valid candidates, human review still required |
-| 5C | External Medical MIRAGE adapter | Complete | 7,663 validated source cases and a frozen 500-case QOR selection; no model run yet |
+| 5C | External Medical MIRAGE adapter | Complete | 7,663 validated source cases and a frozen 500-case QOR selection |
+| 5D | MIRAGE online execution pilot | Complete | 10 paired cases exposed corpus coverage and provider-timeout failure modes |
 
 ## Architecture
 
@@ -431,6 +432,81 @@ coverage diagnostic, but it is not comparable to MIRAGE/MedRAG published RAG
 scores. Integrating the official retrieved snippets or a matched benchmark
 corpus is the next prerequisite for a fair retrieval-system comparison.
 
+### Stage 5D — MIRAGE Online Execution Pilot
+
+Goal: execute the external adapter on a small paid sample, validate exact-choice
+scoring and checkpoint recovery, and identify scaling blockers before running
+hundreds of cases.
+
+The frozen pilot contains two cases from each MIRAGE sub-dataset:
+
+~~~text
+n=10
+seed=13
+fingerprint=4ffb0815ecb344c2
+mmlu=2, medqa=2, medmcqa=2, pubmedqa=2, bioasq=2
+~~~
+
+Final parser-v2 result:
+
+| Metric | Closed-book Gemini | Current Agent |
+|---|---:|---:|
+| Exact-choice accuracy | 1.00 | 0.20 |
+| Wilson 95% CI | [0.722, 1.000] | [0.057, 0.510] |
+| Invalid-choice rate | 0.00 | 0.60 |
+| Provider-error rate | 0.00 | 0.10 |
+| Graph → Vector sequence | N/A | 0.90 |
+| p50 latency | 2.66 s | 14.45 s |
+| p95 latency | 7.12 s | 43.32 s |
+| Average total tokens | 891 | 4,649 |
+
+Paired comparison:
+
+~~~text
+Agent wins       0
+Closed-book wins 8
+Ties             2
+Accuracy delta  -0.80
+McNemar exact p  0.0078125
+~~~
+
+The ten cases are an execution pilot, not a stable estimate of benchmark
+performance. The result is nevertheless diagnostic: the current Agent enforces
+grounding against its local corpus, while the closed-book model can answer from
+parametric knowledge. Five Agent outputs explicitly abstained because the
+15-chunk corpus contained no relevant evidence, one request ended with a Gemini
+504, two answers were incorrect, and two were correct. Therefore, the low score
+primarily demonstrates corpus mismatch plus one provider failure; it should not
+be presented as a fair comparison with MedRAG systems using biomedical corpora.
+
+Problems caught and changes made:
+
+- A Gemini response stalled long enough to block visible progress. Gemini
+  request timeout and retry limits are now configurable and bounded; errors are
+  checkpointed so the next case can continue.
+- Buffered terminal output made a progressing batch look frozen. Operational
+  runs use unbuffered Python output when live progress is required.
+- One correct closed-book answer used LaTeX `\\boxed{D}` instead of the requested
+  JSON. Parser v2 recognizes this explicit answer form and re-scores saved raw
+  outputs without repeating paid model calls.
+- Two manual interruptions tested checkpoint recovery in practice: completed
+  system/case pairs were reused rather than sent to Gemini again.
+
+Reproduce or resume the pilot:
+
+~~~bash
+PYTHONUNBUFFERED=1 .venv.nosync/bin/python -m graphrag.main mirage-benchmark \
+  --limit 10 \
+  --seed 13 \
+  --systems closed-book current-agent
+~~~
+
+The detailed report stays in the gitignored local external-data directory. The
+next evaluation stage should integrate MIRAGE's official retrieved snippets or
+a matched biomedical corpus before increasing the Agent run to 100 or 500
+cases. Scaling the current 15-chunk corpus run would produce a more precise
+measurement of a known coverage mismatch rather than a fair RAG benchmark.
+
 ## Metrics by System Stage
 
 Different stages require different metrics. Adding more metrics is useful only
@@ -488,6 +564,8 @@ Required:
 ~~~text
 GOOGLE_API_KEY=
 GEMINI_MODEL=gemini-2.5-flash
+GEMINI_REQUEST_TIMEOUT_S=30
+GEMINI_MAX_RETRIES=1
 NEO4J_URI=
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=
@@ -505,6 +583,10 @@ MEDICAL_RAG_LANGSMITH_TRACING=false
 MEDICAL_RAG_LANGSMITH_TRACING defaults to false. Enabling it uploads prompts,
 retrieved context, outputs, and trace metadata to the configured LangSmith
 project.
+
+Gemini calls use a bounded request timeout and retry count. This prevents one
+stalled provider response from hanging a multi-case evaluation indefinitely;
+the evaluator checkpoints the timeout as a case error and continues.
 
 ## Tests
 

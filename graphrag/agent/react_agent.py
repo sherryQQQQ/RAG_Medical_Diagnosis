@@ -29,7 +29,12 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
 from graphrag.agent.tools import TOOLS, find_known_drugs
-from graphrag.config import GEMINI_MODEL, GOOGLE_API_KEY
+from graphrag.config import (
+    GEMINI_MAX_RETRIES,
+    GEMINI_MODEL,
+    GEMINI_REQUEST_TIMEOUT_S,
+    GOOGLE_API_KEY,
+)
 
 MAX_RETRIES = 3
 MAX_TOOL_CALLS = 3
@@ -198,6 +203,8 @@ def reason_node(state: AgentState) -> dict:
         model=GEMINI_MODEL,
         google_api_key=GOOGLE_API_KEY,
         temperature=0,
+        request_timeout=GEMINI_REQUEST_TIMEOUT_S,
+        retries=GEMINI_MAX_RETRIES,
     ).bind_tools(TOOLS)
 
     phase_instruction = _next_step_instruction(state)
@@ -279,6 +286,8 @@ def validate_node(state: AgentState) -> dict:
         model=GEMINI_MODEL,
         google_api_key=GOOGLE_API_KEY,
         temperature=0,
+        request_timeout=GEMINI_REQUEST_TIMEOUT_S,
+        retries=GEMINI_MAX_RETRIES,
     )
     validation_prompt = VALIDATE_PROMPT.format(
         query=state["query"],

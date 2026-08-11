@@ -8,6 +8,10 @@ load_dotenv()
 # --- Google Gemini ---
 GOOGLE_API_KEY: str = os.environ["GOOGLE_API_KEY"]
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_REQUEST_TIMEOUT_S: float = float(
+    os.getenv("GEMINI_REQUEST_TIMEOUT_S", "30")
+)
+GEMINI_MAX_RETRIES: int = int(os.getenv("GEMINI_MAX_RETRIES", "1"))
 
 # --- Neo4j ---
 NEO4J_URI: str = os.environ["NEO4J_URI"]
