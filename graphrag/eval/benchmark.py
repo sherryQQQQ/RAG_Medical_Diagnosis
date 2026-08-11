@@ -8,8 +8,11 @@ Usage:
     python -m graphrag.eval.benchmark
 """
 
+import contextlib
 import csv
 import json
+import os
+import sys
 import time
 from dataclasses import dataclass, field
 
@@ -17,24 +20,35 @@ from graphrag.config import EVAL_CSV_PATH
 from graphrag.eval.metrics import mrr, top_k_accuracy, context_recall
 from graphrag.retrieval.hybrid import HybridRetriever
 
+_FINAL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "final"))
+
+
+@contextlib.contextmanager
+def _in_final_dir():
+    """Temporarily cd into final/ so txtai relative paths resolve correctly."""
+    old = os.getcwd()
+    os.chdir(_FINAL_DIR)
+    try:
+        yield
+    finally:
+        os.chdir(old)
+
 
 # ---------- Vanilla RAG baseline (reuse existing final/ code) -----------------
 
 def _load_vanilla_pipeline():
     """Import the existing txtai-based retriever from final/."""
-    import sys
-    import os
-    final_dir = os.path.join(os.path.dirname(__file__), "..", "..", "final")
-    sys.path.insert(0, os.path.abspath(final_dir))
-    os.chdir(os.path.abspath(final_dir))  # prepare.py opens guidelines.txt by relative path
-    from retrieve import DocumentRetriever
-    return DocumentRetriever(limit=5)
+    sys.path.insert(0, _FINAL_DIR)
+    with _in_final_dir():
+        from retrieve import DocumentRetriever
+        return DocumentRetriever(limit=5)
 
 
 def run_vanilla(retriever, query: str) -> tuple[list[str], float]:
-    start = time.time()
-    results = retriever.retrieve(query)
-    elapsed = time.time() - start
+    with _in_final_dir():
+        start = time.time()
+        results = retriever.retrieve(query)
+        elapsed = time.time() - start
     passages = [text for _, text in results]
     return passages, elapsed
 

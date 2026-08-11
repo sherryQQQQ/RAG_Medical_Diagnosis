@@ -17,10 +17,17 @@ NEO4J_PASSWORD: str = os.environ["NEO4J_PASSWORD"]
 # --- LangSmith (optional but recommended) ---
 LANGSMITH_API_KEY: str = os.getenv("LANGSMITH_API_KEY", "")
 LANGSMITH_PROJECT: str = os.getenv("LANGSMITH_PROJECT", "medical-graphrag")
-if LANGSMITH_API_KEY:
+LANGSMITH_TRACING: bool = (
+    os.getenv("MEDICAL_RAG_LANGSMITH_TRACING", "false").lower() == "true"
+)
+if LANGSMITH_API_KEY and LANGSMITH_TRACING:
+    os.environ["LANGSMITH_TRACING"] = "true"
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
     os.environ["LANGCHAIN_API_KEY"] = LANGSMITH_API_KEY
     os.environ["LANGCHAIN_PROJECT"] = LANGSMITH_PROJECT
+else:
+    os.environ["LANGSMITH_TRACING"] = "false"
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
 
 # --- Retrieval ---
 EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-mpnet-base-v2")

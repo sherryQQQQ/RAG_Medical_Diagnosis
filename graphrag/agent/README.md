@@ -13,7 +13,7 @@ START -> graph retrieval -> vector retrieval -> optional safety check
 Run one question:
 
 ```bash
-env LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false \
+env MEDICAL_RAG_LANGSMITH_TRACING=false \
   HF_HUB_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
   .venv.nosync/bin/python -u -m graphrag.main query \
   "For mild acute pancreatitis, when should feeding begin?"
@@ -22,7 +22,7 @@ env LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false \
 Run the five-case online execution smoke suite:
 
 ```bash
-env LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false \
+env MEDICAL_RAG_LANGSMITH_TRACING=false \
   HF_HUB_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
   .venv.nosync/bin/python -u -m graphrag.agent.smoke --limit 5 --no-resume
 ```

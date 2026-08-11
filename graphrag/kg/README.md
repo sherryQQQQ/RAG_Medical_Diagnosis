@@ -5,7 +5,7 @@ Gemini model, validates the returned JSON against a fixed medical graph schema,
 and transactionally merges the normalized entities and relations into Neo4j.
 
 ```bash
-env LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false \
+env MEDICAL_RAG_LANGSMITH_TRACING=false \
   .venv.nosync/bin/python -u -m graphrag.kg.builder
 
 .venv.nosync/bin/python -m graphrag.kg.validate

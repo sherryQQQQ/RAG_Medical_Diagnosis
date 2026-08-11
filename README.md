@@ -1,270 +1,363 @@
-# Medical Diagnosis with Agentic GraphRAG
+# Medical QA with Agentic GraphRAG
 
-This project is a medical question-answering system that evolves a baseline
-Retrieval-Augmented Generation demo into an agentic GraphRAG architecture.
+This repository implements a grounded medical question-answering system that
+combines FAISS semantic retrieval, a Neo4j medical knowledge graph, Gemini, and
+a bounded LangGraph agent. It also separates retrieval evaluation from true
+end-to-end answer evaluation so that each system stage is measured with metrics
+that match its responsibility.
 
-The core idea is simple: a language model should not answer medical questions
-from memory alone. It should first retrieve grounded clinical evidence, combine
-semantic retrieval with structured medical relationships, and then generate an
-answer that can be evaluated for correctness and grounding.
+This is an engineering and evaluation project, not a clinically validated
+medical device.
 
-## What This Project Does
+## Current Status
 
-Given a patient-style clinical question, the system is designed to:
-
-1. Retrieve relevant guideline evidence.
-2. Compare a simple vector-only RAG baseline with a graph-informed hybrid method.
-3. Use structured medical terms from the original dataset to improve retrieval.
-4. Provide measurable evaluation using MRR, Top-1 accuracy, and Top-3 accuracy.
-5. Include an experimental LangGraph ReAct agent workflow that can use Gemini,
-   Neo4j, FAISS, and LangSmith once external credentials are configured.
-
-The current fully runnable path is the synthetic retrieval benchmark, which does
-not require external APIs. The full LLM/Neo4j agent path requires credentials.
+| Stage | Scope | Status | Primary evidence |
+|---|---|---:|---|
+| 1 | Reproducible Agent runtime | Complete | Environment check and dimension-compatible FAISS index |
+| 2 | Validated Neo4j knowledge graph | Complete | 15/15 chunks imported, schema/path validation passed |
+| 3 | Bounded safety-gated LangGraph Agent | Complete | 5/5 online smoke cases passed |
+| 4 | End-to-end evaluation and observability | Complete | Frozen 5-case run, independent judge, local traces |
 
 ## Architecture
 
-```mermaid
+~~~mermaid
 flowchart TD
-    A["Original Dataset<br/>final/medical_generalization.csv"]:::data
-    B["Synthetic Data Builder<br/>extract terms from prompt + answer"]:::process
-    C["Synthetic Retrieval Dataset<br/>graphrag/eval/data/*.json"]:::data
+    Q["Medical question"] --> A["LangGraph Agent state"]
+    A --> G["Mandatory graph retrieval"]
+    G --> N["Neo4j Aura"]
+    N --> V["Mandatory vector retrieval"]
+    V --> F["FAISS + all-mpnet-base-v2"]
+    F --> D{"Known drug mentioned?"}
+    D -- "Yes" --> S["Contraindication check"]
+    S --> X["Gemini answer generation"]
+    D -- "No" --> X
+    X --> R["Grounding and safety reflection"]
+    R -- "Retry, max 3" --> A
+    R -- "Approved" --> O["Final answer"]
+    O --> E["Stage 4 evaluator"]
+    E --> J["Independent Gemini judge"]
+    E --> T["Local JSON trace"]
+    E -. "Explicit opt-in only" .-> L["LangSmith trace"]
+~~~
 
-    C --> D["Vector-Only Baseline<br/>lexical answer-document retrieval"]:::baseline
-    C --> E["Graph-Term Retriever<br/>prompt/answer medical term matching"]:::graphret
+The safety-critical retrieval order is enforced in code:
 
-    D --> F["Vector Ranking"]:::rank
-    E --> G["Graph Ranking"]:::rank
-    F --> H["Hybrid Fusion<br/>Reciprocal Rank Fusion"]:::fusion
-    G --> H
+~~~text
+Graph -> Vector -> optional Contraindication -> Generation -> Reflection
+~~~
 
-    D --> I["Evaluation<br/>MRR, Top-1, Top-3"]:::eval
-    H --> I
+The LLM synthesizes and critiques answers, but it does not decide whether the
+mandatory grounding steps can be skipped.
 
-    I --> J["Result<br/>Hybrid retrieval beats vector-only baseline"]:::result
+## Implementation Stages
 
-    subgraph Agentic_Expansion["Agentic GraphRAG Expansion"]
-        K["LangGraph ReAct Agent"]:::agent
-        L["FAISS Vector Retriever"]:::agent
-        M["Neo4j Knowledge Graph"]:::agent
-        N["Gemini Generator"]:::agent
-        O["Reflector / Validator"]:::agent
-        K --> L
-        K --> M
-        L --> N
-        M --> N
-        N --> O
-        O --> K
-    end
+### Stage 1 — Reproducible Runtime
 
-    J -. "validated retrieval layer" .-> Agentic_Expansion
+Goal: make the existing Agent scaffold executable and reproducible before
+changing its behavior.
 
-    classDef data fill:#E8F3FF,stroke:#2563EB,stroke-width:2px,color:#0F172A;
-    classDef process fill:#F0FDFA,stroke:#0D9488,stroke-width:2px,color:#0F172A;
-    classDef baseline fill:#FFF7ED,stroke:#EA580C,stroke-width:2px,color:#0F172A;
-    classDef graphret fill:#F5F3FF,stroke:#7C3AED,stroke-width:2px,color:#0F172A;
-    classDef rank fill:#F8FAFC,stroke:#64748B,stroke-width:1.5px,color:#0F172A;
-    classDef fusion fill:#ECFDF5,stroke:#16A34A,stroke-width:2px,color:#0F172A;
-    classDef eval fill:#FEFCE8,stroke:#CA8A04,stroke-width:2px,color:#0F172A;
-    classDef result fill:#DCFCE7,stroke:#15803D,stroke-width:2.5px,color:#052E16;
-    classDef agent fill:#FDF2F8,stroke:#DB2777,stroke-width:1.5px,color:#0F172A;
-```
+Implemented:
 
-## How Synthetic Data Is Built
+- Added a pinned runtime in requirements-agent.txt.
+- Added scripts/check_agent_environment.py for offline and online checks.
+- Standardized generation on gemini-2.5-flash.
+- Rebuilt the FAISS index so its 768 dimensions match
+  sentence-transformers/all-mpnet-base-v2.
+- Import PyTorch before FAISS on macOS/arm64 to avoid the native runtime conflict.
+- Store the virtual environment in .venv.nosync.
 
-The synthetic benchmark is derived from the original dataset:
+Validation:
 
-```text
-final/medical_generalization.csv
-```
+~~~text
+Python imports             PASS
+FAISS index                15 chunks, 768 dimensions
+Gemini connectivity        PASS
+Neo4j connectivity         PASS
+Broken Python requirements 0
+~~~
 
-Each original row contains:
+Reproduce:
 
-- `prompt`: the original patient-style clinical question
-- `answer_before`: older or weaker baseline answer
-- `answer`: updated guideline-grounded answer
+~~~bash
+python3 -m venv .venv.nosync
+.venv.nosync/bin/python -m pip install -r requirements-agent.txt
+.venv.nosync/bin/python scripts/check_agent_environment.py --online
+~~~
 
-The synthetic data builder turns each row into a retrieval case:
+### Stage 2 — Validated Medical Knowledge Graph
 
-```text
-original QA row
--> case_id, source prompt, source answer
--> extracted prompt terms
--> extracted answer terms
--> synthetic retrieval queries
--> gold expected case_id
-```
+Goal: turn LLM-extracted medical entities into a constrained, repeatable Neo4j
+knowledge graph rather than trusting arbitrary model output.
 
-Term extraction is deterministic. It pulls:
+Implemented:
 
-- medical abbreviations, such as `DASI`, `EGFR`, `NSCLC`
-- numeric clinical details, such as `14 days`, `180/110`, `3-4 days`
-- unigram, bigram, and trigram medical phrases from prompts and answers
+- Entity and relation allowlists.
+- Deterministic endpoint normalization and canonical lowercase keys.
+- Transactional MERGE operations with uniqueness constraints.
+- SHA-256 SourceChunk markers for resumable, idempotent ingestion.
+- Directed contraindication queries and partial-condition matching.
+- Schema, constraint, sample-path, and retrieval validation.
 
-The generated JSON dataset is saved at:
+Observed build:
 
-```text
-graphrag/eval/data/synthetic_medical_retrieval.json
-```
+| Item | Count |
+|---|---:|
+| Source chunks processed | 15 |
+| Disease nodes | 57 |
+| Symptom nodes | 17 |
+| Treatment nodes | 88 |
+| Drug nodes | 48 |
+| Domain relationships | 131 |
+| Uniqueness constraints | 5 |
 
-## Compared Methods
+An immediate rerun skipped all 15 chunks and made zero extraction calls.
 
-### 1. Vector-Only Baseline
+Reproduce:
 
-This is a lightweight stand-in for vanilla RAG retrieval.
+~~~bash
+.venv.nosync/bin/python -m graphrag.main build-kg
+.venv.nosync/bin/python -m graphrag.kg.validate
+~~~
 
-It ranks cases using lexical overlap between the synthetic query and the
-answer-style document. The original prompt is not placed directly into the
-vector document, so the baseline cannot simply memorize the question text.
+The source guideline file is intentionally not committed. Place the authorized
+local input at final/guidelines.txt before rebuilding FAISS or Neo4j.
 
-### 2. Hybrid Graph + Vector Retrieval
+### Stage 3 — Bounded Safety-Gated Agent
 
-This method keeps the vector baseline but adds graph-style medical term
-matching. Prompt and answer terms act like a lightweight synthetic graph:
+Goal: execute a real end-to-end Agent instead of relying on the earlier
+retrieval-only comparison.
 
-```text
-clinical terms -> original case -> updated guideline answer
-```
+Implemented:
 
-The vector ranking and graph-term ranking are combined with Reciprocal Rank
-Fusion (RRF):
+- Mandatory Graph then Vector routing in LangGraph control flow.
+- Conditional contraindication lookup when a known Neo4j drug is mentioned.
+- Maximum of three tool calls and three reflection attempts.
+- Safe tool-error disclosure and non-empty fallback behavior.
+- Candidate-answer, validation-verdict, retry, and final-status state.
+- Newest-evidence-first context ordering for the reflector.
+- Five synthetic online execution cases.
 
-```text
-score = sum(1 / (k + rank))
-```
+Online smoke result:
 
-This mirrors the intended GraphRAG design: vector search captures semantic text
-similarity, while graph retrieval captures structured medical relationships.
+| Metric | Result |
+|---|---:|
+| Pipeline pass | 5/5 |
+| Keyword sanity pass | 5/5 |
+| Reflection approved | 5/5 |
+| Tool errors | 0 |
+| Average retries | 0.0 |
+| Average latency | 5.86 s |
 
-## Results
+These are execution smoke metrics, not clinical-quality scores. Detailed cases
+are stored in graphrag/eval/data/agent_smoke_results.json.
 
-Run:
+Reproduce:
 
-```bash
-.venv/bin/python -m graphrag.main generate-synthetic-data
-.venv/bin/python -m graphrag.main synthetic-benchmark
-```
+~~~bash
+.venv.nosync/bin/python -m graphrag.agent.smoke --no-resume
+~~~
 
-Current result:
+### Stage 4 — End-to-End Evaluation and Observability
 
-```text
-Queries: 375
+Goal: score the final Agent answer and the behavior of the complete workflow,
+while preserving retrieval metrics as a separate diagnostic layer.
 
-Method                    MRR     Top-1   Top-3
-Vector-only baseline      0.598   0.541   0.648
-Hybrid graph+vector       0.853   0.781   0.901
-```
+Implemented:
 
-Interpretation:
+- Deterministic case selection with a dataset fingerprint.
+- Checkpoint/resume with dataset and judge-model mismatch protection.
+- A reference-and-context-aware LLM judge.
+- Separate Agent latency and judge latency.
+- Per-case tool sequence, errors, contexts, retries, reflection status, answer,
+  judge rationale, and trace ID.
+- 95% bootstrap confidence intervals for quality metrics.
+- Local JSON traces by default.
+- Optional LangSmith traces only when MEDICAL_RAG_LANGSMITH_TRACING=true.
+- Judge failure preserves the already-paid Agent answer and trace.
+- Empty Agent answers skip the judge call.
+- Explicit --rejudge support reuses Agent answers when a judge model changes.
 
-The hybrid method performs better because many clinical queries contain
-specific medical terms, abbreviations, durations, thresholds, or treatment
-phrases. A pure vector/lexical baseline may miss the correct row when wording is
-indirect. The graph-informed method can use structured prompt/answer terms to
-recover the right retrieval target.
+Frozen initial online selection:
 
-## Run Tests
+~~~text
+n=5
+seed=13
+fingerprint=36dd8bbe4a0aa6c4
+case_ids=case_100, case_092, case_058, case_118, case_019
+~~~
 
-```bash
-.venv/bin/python -m unittest graphrag.eval.test_synthetic_compare
-```
+Dry-run without external calls:
 
-Expected result:
+~~~bash
+.venv.nosync/bin/python -m graphrag.main e2e-benchmark \
+  --limit 5 \
+  --seed 13 \
+  --dry-run
+~~~
 
-```text
-Ran 4 tests
-OK
-```
+Run the frozen evaluation:
 
-## Agentic GraphRAG Path
+~~~bash
+.venv.nosync/bin/python -m graphrag.main e2e-benchmark \
+  --limit 5 \
+  --seed 13 \
+  --judge-model gemini-pro-latest \
+  --no-resume
+~~~
 
-The repository also contains an experimental LangGraph ReAct-style agent
-architecture:
+The checkpoint is written after every case to
+graphrag/eval/data/e2e_agent_results.json.
 
-- `graphrag/retrieval/vector.py`: FAISS vector retriever
-- `graphrag/retrieval/graph.py`: Neo4j graph retriever
-- `graphrag/retrieval/hybrid.py`: RRF hybrid retriever
-- `graphrag/agent/react_agent.py`: LangGraph ReAct-style agent
-- `graphrag/kg/builder.py`: Gemini-based knowledge graph extraction
-- `graphrag/eval/benchmark.py`: benchmark scaffold
+Formal 5-case result:
 
-The intended full workflow is:
+| Metric | Result |
+|---|---:|
+| Pipeline success | 5/5 |
+| Judge success | 5/5 |
+| Reflection approval | 5/5 |
+| Required Graph → Vector sequence | 5/5 |
+| Tool-error case rate | 0.00 |
+| Retry case rate | 0.20 |
+| Clinical correctness | 0.95, 95% CI [0.85, 1.00] |
+| Context faithfulness | 1.00 |
+| Answer relevance | 1.00 |
+| Completeness | 1.00 |
+| Medical safety | 1.00 |
+| Unsafe-answer rate | 0.00 |
+| Unsupported claims per answer | 0.00 |
+| Average Agent latency | 9.00 s |
+| p50 / p95 Agent latency | 9.85 s / 13.81 s |
+| Average Judge latency | 7.03 s |
 
-```text
-user query
--> planner / ReAct agent
--> vector retrieval from FAISS
--> graph retrieval from Neo4j
--> hybrid context fusion
--> Gemini answer generation
--> reflector validates grounding and safety
--> final medical QA answer
-```
+Generation used gemini-2.5-flash and the independent judge used
+gemini-pro-latest. LangSmith upload was disabled; each local case still records a
+trace ID and full checkpoint. One answer scored 4/5 rather than 5/5 for clinical
+correctness because it gave multiple context-supported vaccine regimens while
+the reference expected one specific option.
 
-This path is implemented as a scaffold, but end-to-end execution requires
-external services: Gemini for generation, Neo4j for graph retrieval, and
-optionally LangSmith for tracing. The synthetic benchmark above is the fully
-runnable local evaluation path.
+Lexical token F1 was only 0.143 despite the strong reference-aware scores. This
+is expected for open-ended answers with different valid wording and is why token
+F1 is retained as a diagnostic rather than the primary medical QA metric.
+Because n=5 is small, these numbers are a pipeline-level preliminary evaluation,
+not a deployment or clinical-validity claim.
 
-## Environment Variables
+## Metrics by System Stage
 
-Create a local `.env` file from the example:
+Different stages require different metrics. Adding more metrics is useful only
+when each metric diagnoses a distinct failure mode.
 
-```bash
+| Layer | Metrics | What a failure means |
+|---|---|---|
+| Retrieval | MRR, Top-1/3/5 | Relevant evidence was ranked too low or missed |
+| Orchestration | Required tool sequence, tool-error rate, context count | Agent routing or tool integration failed |
+| Reflection | Approval rate, retry rate, average retries | Drafts are repeatedly ungrounded or incomplete |
+| Answer quality | Correctness, faithfulness, relevance, completeness | Final answer does not match the reference or evidence |
+| Medical safety | Safety score, unsafe-answer rate, unsupported claims | Answer may create clinical risk or false reassurance |
+| System performance | Pipeline/judge success, p50/p95 Agent latency | Reliability or user-facing performance is poor |
+
+Retrieval metrics cannot establish final answer quality. Likewise, a high
+answer-quality score cannot identify whether weak retrieval, routing, generation,
+or reflection caused a failure. The evaluator therefore reports both stage-level
+diagnostics and end-to-end outcomes.
+
+## Retrieval-Only Benchmark
+
+The deterministic offline benchmark contains 375 synthetic queries derived from
+final/medical_generalization.csv. It does not call Gemini or execute the
+LangGraph Agent.
+
+| Method | MRR | Top-1 | Top-3 | Top-5 |
+|---|---:|---:|---:|---:|
+| Vector-only baseline | 0.598 | 0.541 | 0.648 | 0.688 |
+| Hybrid graph+vector | 0.853 | 0.781 | 0.901 | 0.971 |
+
+Reproduce:
+
+~~~bash
+.venv.nosync/bin/python -m graphrag.main generate-synthetic-data
+.venv.nosync/bin/python -m graphrag.main synthetic-benchmark
+~~~
+
+Results are stored in
+graphrag/eval/data/retrieval_benchmark_results.json.
+
+## Environment
+
+Copy the template and fill in local credentials:
+
+~~~bash
 cp .env.example .env
 chmod 600 .env
-```
+~~~
 
-Fill in:
+Required:
 
-```bash
-GOOGLE_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-2.0-flash
-
-NEO4J_URI=your_neo4j_uri
+~~~text
+GOOGLE_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+NEO4J_URI=
 NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your_neo4j_password
+NEO4J_PASSWORD=
+~~~
 
+Evaluation and observability:
+
+~~~text
+EVAL_JUDGE_MODEL=gemini-pro-latest
 LANGSMITH_API_KEY=
 LANGSMITH_PROJECT=medical-graphrag
-```
+MEDICAL_RAG_LANGSMITH_TRACING=false
+~~~
 
-Do not commit `.env`. It is ignored by git.
+MEDICAL_RAG_LANGSMITH_TRACING defaults to false. Enabling it uploads prompts,
+retrieved context, outputs, and trace metadata to the configured LangSmith
+project.
+
+## Tests
+
+Run the focused suite without writing Python bytecode:
+
+~~~bash
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
+  graphrag.agent.test_react_agent \
+  graphrag.agent.test_tools \
+  graphrag.agent.test_smoke \
+  graphrag.retrieval.test_graph \
+  graphrag.kg.test_builder \
+  graphrag.eval.test_e2e_benchmark \
+  graphrag.eval.test_synthetic_compare -v
+~~~
 
 ## Repository Layout
 
-```text
-final/
-  prepare.py                  baseline chunking + embedding setup
-  retrieve.py                 baseline retriever
-  generate.py                 Gemini answer generation
-  medical_generalization.csv  original evaluation dataset
-
+~~~text
 graphrag/
-  main.py                     CLI entry point
-  eval/
-    synthetic_compare.py      synthetic data builder + method comparison
-    test_synthetic_compare.py tests for synthetic benchmark
-    data/
-      synthetic_medical_retrieval.json
-  retrieval/
-    vector.py                 FAISS retriever
-    graph.py                  Neo4j retriever
-    hybrid.py                 RRF hybrid retriever
   agent/
-    react_agent.py            LangGraph agent
+    react_agent.py             bounded LangGraph workflow
+    tools.py                   graph, vector, and safety tools
+    smoke.py                   online execution smoke suite
+  eval/
+    e2e_benchmark.py           final-answer evaluation and local traces
+    synthetic_compare.py       retrieval-only comparison
+    data/                      versioned evaluation artifacts
   kg/
-    builder.py                Gemini-to-Neo4j graph builder
-```
+    builder.py                 validated idempotent KG ingestion
+    validate.py                Neo4j schema and path checks
+  retrieval/
+    graph.py                   Neo4j retrieval and safety queries
+    vector.py                  FAISS semantic retrieval
+scripts/
+  check_agent_environment.py   reproducibility and connectivity checks
+~~~
 
-## Interview Summary
+## Evaluation Limits
 
-This project demonstrates how a medical QA system can move from vanilla RAG to
-agentic GraphRAG. The baseline retrieves answer documents with vector-style
-matching. The improved method adds graph-informed clinical term retrieval and
-fuses rankings with RRF. On a synthetic benchmark derived from the original
-medical dataset, hybrid retrieval improves MRR from `0.598` to `0.853` and
-Top-3 accuracy from `0.648` to `0.901`.
-
-The main lesson: RAG gives grounding, graph retrieval gives structure, and an
-agent workflow gives controllable tool use and validation.
+- The 375-query retrieval set is synthetic and is not a substitute for a
+  human-labeled external retrieval benchmark.
+- The Stage 4 source references come from the project dataset; a final claim
+  requires a frozen human-reviewed test set.
+- LLM-as-Judge scores may be biased. The evaluator records whether the judge is
+  independent from the generation model and retains its rationale.
+- Automated safety scores require manual review of every answer marked unsafe
+  and a stratified review of answers marked safe.
+- This system must not be used as a substitute for professional medical care.

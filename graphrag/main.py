@@ -9,6 +9,7 @@ Commands:
                       Generate a deterministic synthetic retrieval dataset
     synthetic-benchmark
                       Compare vector-only vs hybrid retrieval on generated synthetic data
+    e2e-benchmark     Evaluate final Agent answers with traces and an LLM judge
 
 Examples:
     python -m graphrag.main build-kg
@@ -16,6 +17,7 @@ Examples:
     python -m graphrag.main benchmark
     python -m graphrag.main generate-synthetic-data
     python -m graphrag.main synthetic-benchmark
+    python -m graphrag.main e2e-benchmark --limit 10
 """
 
 import sys
@@ -45,6 +47,9 @@ def main():
             retrieved_context=[],
             retry_count=0,
             final_answer="",
+            candidate_answers=[],
+            validation_verdicts=[],
+            status="running",
         ))
         print("\n=== FINAL ANSWER ===")
         print(result["final_answer"])
@@ -59,8 +64,12 @@ def main():
         print(f"Synthetic dataset written to: {path}")
 
     elif command == "synthetic-benchmark":
-        from graphrag.eval.synthetic_compare import compare_methods, print_report
-        print_report(compare_methods())
+        from graphrag.eval.synthetic_compare import run_retrieval_benchmark
+        run_retrieval_benchmark()
+
+    elif command == "e2e-benchmark":
+        from graphrag.eval.e2e_benchmark import main as run_e2e_benchmark
+        run_e2e_benchmark(sys.argv[2:])
 
     else:
         print(f"Unknown command: {command}")

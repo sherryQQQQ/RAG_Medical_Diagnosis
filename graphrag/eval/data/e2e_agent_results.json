@@ -1,0 +1,262 @@
+{
+  "evaluation_type": "end_to_end_agent_answer_evaluation",
+  "note": "Automated source-reference evaluation; this is not clinical validation and requires human review before deployment claims.",
+  "dataset": {
+    "source": "final/medical_generalization.csv",
+    "n_cases": 5,
+    "selection_seed": 13,
+    "fingerprint": "36dd8bbe4a0aa6c4",
+    "case_ids": [
+      "case_100",
+      "case_092",
+      "case_058",
+      "case_118",
+      "case_019"
+    ]
+  },
+  "generation_model": "gemini-2.5-flash",
+  "judge_model": "gemini-pro-latest",
+  "judge_independent_from_generator": true,
+  "langsmith_tracing_enabled": false,
+  "score_scale": "Judge scores normalized from 1-5 to 0-1",
+  "metrics": {
+    "n_cases": 5,
+    "n_pipeline_successful": 5,
+    "n_judged": 5,
+    "pipeline_success_rate": 1.0,
+    "judge_success_rate": 1.0,
+    "reflection_approval_rate": 1.0,
+    "retrieval_tool_sequence_success_rate": 1.0,
+    "tool_error_case_rate": 0.0,
+    "contraindication_tool_call_rate": 0.4,
+    "average_context_count": 2.4,
+    "average_tool_calls": 2.4,
+    "retry_case_rate": 0.2,
+    "average_retries": 0.2,
+    "average_agent_latency_s": 8.998027991800337,
+    "p50_agent_latency_s": 9.854567250004038,
+    "p95_agent_latency_s": 13.809009375007008,
+    "clinical_correctness": 0.95,
+    "clinical_correctness_95ci": [
+      0.85,
+      1.0
+    ],
+    "context_faithfulness": 1.0,
+    "context_faithfulness_95ci": [
+      1.0,
+      1.0
+    ],
+    "answer_relevance": 1.0,
+    "answer_relevance_95ci": [
+      1.0,
+      1.0
+    ],
+    "completeness": 1.0,
+    "completeness_95ci": [
+      1.0,
+      1.0
+    ],
+    "medical_safety": 1.0,
+    "medical_safety_95ci": [
+      1.0,
+      1.0
+    ],
+    "token_f1": 0.14271408069941185,
+    "unsafe_answer_rate": 0.0,
+    "unsupported_claims_per_answer": 0.0,
+    "average_judge_latency_s": 7.031841991399415,
+    "average_total_latency_s": 16.029869983199752
+  },
+  "cases": [
+    {
+      "case_id": "case_100",
+      "question": "A 32-year-old patient with daily fentanyl use is admitted for cellulitis and wants to start methadone treatment. Using the rapid initiation protocol, what is the maximum total methadone dose you could administer in the first 24 hours?",
+      "reference": "Up to 60mg total in the first 24 hours",
+      "category": "unspecified",
+      "answer": "For a hospitalized patient undergoing rapid methadone initiation, the maximum total methadone dose that could be administered in the first 24 hours is 60 mg, according to rapid titration protocols (Passage 1).",
+      "context": [
+        "No matching diseases found in knowledge graph for the given symptoms.",
+        "[Passage 1, score=0.501]\nMedication dosing and titration are critical areas of focus. In hospitalized patients, rapid titration protocols allow dosing up to 60 mg on day one and 100 mg by days 4 to 7. Maintenance dosing considerations recommend higher initial doses (8-16 mg/day or even higher) to reduce overdose mortality, although this approach is continuously refined with emerging data. For tofacitinib, higher doses (10 mg twice daily) carry an increased risk of venous thromboembolism (VTE) compared to lower doses (5 mg twice daily), and caution is advised with oral prednisone following pulse therapy, limiting initial doses to 40 mg/day to reduce risks of serious infections and mortality.\n\n[Passage 2, score=0.303]\nIn the realm of preoperative and perioperative management, clinicians are encouraged to assess functional capacity using the Duke Activity Status Index (DASI). With a cutoff score of greater than 34-equivalent to achieving at least 4 metabolic equivalents (METs)-this standardized measure has earned respect through years of rigorous research. The evolution of functional status tools is filled with memories of debates held over countless coffee breaks, where early attempts in the 1980s paved the way for the DASI to become an inside shorthand among clinicians. Equally important is the guidance to discontinue SGLT2 inhibitors three to four days before surgery. This is not simply a numeric directive; it reflects a deep pharmacodynamic understanding and lessons learned from numerous institutions, where anecdotal evidence has underscored the risk of ketoacidosis if these agents are not held. Moreover, the influence of such guidelines stretches even into hospital protocols and staff training, impacting medication inventory management.\n\n[Passage 3, score=0.288]\nIn summary, these clinical guidelines are far more than isolated recommendations; they represent the culmination of decades of research, debate, and clinical practice. Each guideline carries with it layers of historical context, nuanced discussion, and human experience, all of which enrich our understanding and ultimately serve to improve patient care. As science continues to evolve, so too will these recommendations, always balancing precision with the broader narrative of medicine.\n\n[Passage 4, score=0.275]\nFluid resuscitation is another area where art meets science. The recommendation is to administer a 10 mL/kg bolus followed by a continuous infusion of 1.5 mL/kg per hour of lactated Ringer's solution. While these numbers provide clear guidance, clinicians often recall spirited debates over the merits of crystalloids versus colloids-discussions that evoke images of early protocol introductions and even considerations of environmental impact from hospital waste. In managing patients with mild acute pancreatitis, early feeding with a low-fat solid diet initiated within 24 to 48 hours has supplanted the older practice of bowel rest. This change not only reflects scientific progress but also a fascinating evolution of nutritional philosophies that vary culturally and historically. Equally critical are the thresholds set for brain death and donation testing; before testing, patients must achieve a minimum temperature of 36\u00b0C, a systolic blood pressure of at least 100 mmHg, and a mean arterial pressure of 75 mmHg. These parameters, born from cumulative clinical experience, illustrate how seemingly minor physiological differences can have major implications in critical care, while also engaging ethical, legal, and philosophical debates.\n\n[Passage 5, score=0.272]\nFinally, several miscellaneous yet evolving topics round out these guidelines. Annual screening for anal cancer using digital anorectal examinations-preceded by appropriate laboratory testing-highlights the importance of early detection. Dynamic testing for adrenal function should be reserved for cases with ongoing uncertainty. Return-to-play decisions for athletes must be a collaborative process between the physician and the athlete, while educational programs should provide at least 26 contact hours to be deemed effective. In pediatric care, HCV screening using nucleic acid testing (NAT) between 2 and 6 months is recommended, and thyroid hormone should not be administered in hemodynamically unstable, brain-dead organ donors. Literacy promotion from birth, as recommended by the American Academy of Pediatrics (AAP), underscores the broad impact of early education on lifelong development. In breast cancer management, completion axillary lymph node dissection may be omitted in selected patients, and the use of wakefulness agents for cancer-related fatigue is discouraged. Finally, the approval of pitolisant for narcolepsy-approved for patients 6 years and older in the United States-serves as a capstone to these diverse guidelines."
+      ],
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector"
+      ],
+      "tool_errors": [],
+      "retry_count": 0,
+      "status": "approved",
+      "validation_verdicts": [
+        "APPROVED: The answer is directly supported by Passage 1, which states \"rapid titration protocols allow dosing up to 60 mg on day one\" for hospitalized patients. It is safe and completely addresses the query."
+      ],
+      "trace_id": "bd2dd81a-a930-45a2-883b-ac99326a020f",
+      "agent_latency_s": 9.854567250004038,
+      "judge_latency_s": 4.638059958000667,
+      "token_f1": 0.34146341463414637,
+      "judge": {
+        "clinical_correctness": 5,
+        "context_faithfulness": 5,
+        "answer_relevance": 5,
+        "completeness": 5,
+        "medical_safety": 5,
+        "unsupported_claims": 0,
+        "unsafe": false,
+        "reason": "The system answer correctly identifies the maximum total methadone dose in the first 24 hours as 60 mg, which aligns perfectly with the reference answer and is fully supported by the retrieved context."
+      },
+      "agent_error": "",
+      "judge_error": ""
+    },
+    {
+      "case_id": "case_092",
+      "question": "A 45-year-old woman with type 2 diabetes on empagliflozin presents with nausea, vomiting, and abdominal pain. Her blood glucose is 180 mg/dL, but she has an anion gap metabolic acidosis and positive serum ketones. What is the most likely diagnosis?",
+      "reference": "Normoglycemic DKA due to SGLT2 inhibitor use",
+      "category": "unspecified",
+      "answer": "The patient's symptoms (nausea, vomiting, abdominal pain, anion gap metabolic acidosis, and positive serum ketones) combined with her type 2 diabetes and empagliflozin (an SGLT2 inhibitor) suggest a diagnosis of **euglycemic diabetic ketoacidosis (DKA)**.\n\nHere's why:\n*   **SGLT2 inhibitors and DKA:** Clinical guidelines indicate that DKA can occur even with normal or only mildly elevated glucose levels (less than 200 mg/dL) in patients taking SGLT2 inhibitors (Passage 1, retrieve_vector). The patient's blood glucose of 180 mg/dL falls within this range.\n*   **Discontinuation of SGLT2 inhibitors:** It is recommended to discontinue SGLT2 inhibitors three to four days before surgery due to the risk of ketoacidosis if these agents are not held (Passage 2, retrieve_vector). While the patient is not explicitly stated to be undergoing surgery, this highlights the known risk of ketoacidosis associated with SGLT2 inhibitors.\n*   **Symptoms:** The patient's symptoms of nausea, vomiting, abdominal pain, anion gap metabolic acidosis, and positive serum ketones are classic signs of DKA.\n\n**Treatment:**\nThe `retrieve_graph` tool identified \"glp-1 agonists and sglt-2 inhibitors\" and \"glp-1 and sglt-2 therapy\" as treatments for type 2 diabetes, and \"glp-1 agonists, sglt-2 inhibitors\" as drugs. However, given the likely diagnosis of euglycemic DKA, the immediate treatment would focus on managing the DKA, which typically involves insulin, fluid resuscitation, and electrolyte management, not continued SGLT2 inhibitors.\n\n**Contraindications:**\nA check for contraindications for \"sglt2 inhibitors\" did not find any matching contraindications in the knowledge graph. However, this does not mean the drug is safe for this patient in the context of DKA. The information from `retrieve_vector` strongly suggests that SGLT2 inhibitors can *cause* DKA, and therefore, continuing empagliflozin would be contraindicated in this situation.\n\n**Important Note:** This is a likely diagnosis based on the provided information. The patient requires immediate clinical evaluation and management for suspected euglycemic DKA.",
+      "context": [
+        "Disease: type 2 diabetes\n  Treatments: glp-1 agonists and sglt-2 inhibitors, glp-1 and sglt-2 therapy\n  Drugs: glp-1 agonists, sglt-2 inhibitors",
+        "[Passage 1, score=0.533]\nIn endocrine, metabolic, and pregnancy care, the landscape has shifted significantly. The Endocrine Society has moved away from endorsing fixed 25(OH)D levels for vitamin D status, marking a move toward individualized care that accounts for geographic and genetic variations. Folic acid supplementation remains a cornerstone in obstetrics, with a recommendation of at least 0.4 mg before and during pregnancy-a simple directive that has had a profound impact on reducing neural tube defects and improving public health. In the realm of epilepsy, especially among women of childbearing potential, there is now a clear preference for using lamotrigine, levetiracetam, or oxcarbazepine over valproic acid and phenobarbital due to concerns about teratogenicity. Likewise, for pregnant patients with HIV, Bictegravir/FTC/TAF offers an alternative option for initial antiretroviral therapy that balances maternal and fetal health. In managing obesity, the emergence of agents such as tirzepatide and semaglutide is noteworthy, with tirzepatide at 15 mg weekly offering a mean weight loss of 15-21%, a development that intertwines cutting-edge research with broader social and economic implications. Moreover, clinicians are reminded that diabetic ketoacidosis (DKA) can present even with normal or only mildly elevated glucose levels (less than 200 mg/dL), particularly in patients on SGLT2 inhibitors-a nuance that underscores the complexity of metabolic processes and the need for vigilant diagnosis.\n\n[Passage 2, score=0.394]\nIn the realm of preoperative and perioperative management, clinicians are encouraged to assess functional capacity using the Duke Activity Status Index (DASI). With a cutoff score of greater than 34-equivalent to achieving at least 4 metabolic equivalents (METs)-this standardized measure has earned respect through years of rigorous research. The evolution of functional status tools is filled with memories of debates held over countless coffee breaks, where early attempts in the 1980s paved the way for the DASI to become an inside shorthand among clinicians. Equally important is the guidance to discontinue SGLT2 inhibitors three to four days before surgery. This is not simply a numeric directive; it reflects a deep pharmacodynamic understanding and lessons learned from numerous institutions, where anecdotal evidence has underscored the risk of ketoacidosis if these agents are not held. Moreover, the influence of such guidelines stretches even into hospital protocols and staff training, impacting medication inventory management.\n\n[Passage 3, score=0.389]\nCardiomyopathy and heart failure management also exhibit considerable nuance. For hypertrophic cardiomyopathy (HCM), patients are encouraged to exercise to maintain fitness and reduce metabolic syndrome risk, with mavacamten recommended for those with obstructive symptoms. In managing heart failure with preserved ejection fraction (HFpEF), mineralocorticoid receptor antagonists (MRAs) are recommended for patients meeting specific criteria and may be further considered in those with persistent symptoms despite optimal therapy. For patients with hepatorenal syndrome (HRS), terlipressin is the vasoactive drug of choice-administered via a peripheral line unless contraindicated by ischemia. Anticoagulation strategies are tailored individually, and the use of aspirin in stable atherosclerotic cardiovascular disease is discouraged to avoid excess bleeding risk.\n\n[Passage 4, score=0.313]\nOver the years, clinical practice has evolved into a rich tapestry of evidence-based recommendations intertwined with anecdotal experiences and historical debates. The following essay presents a comprehensive discussion of guidelines spanning preoperative management, cardiovascular care, endocrine considerations, infectious diseases, oncology, critical care, neurology, medication dosing, nutritional support, and various evolving topics. Each recommendation is explained not only in terms of its practical directive but also with extensive commentary that delves into the historical context, underlying philosophy, and sometimes even the human stories behind these clinical decisions.\n\n[Passage 5, score=0.299]\nFluid resuscitation is another area where art meets science. The recommendation is to administer a 10 mL/kg bolus followed by a continuous infusion of 1.5 mL/kg per hour of lactated Ringer's solution. While these numbers provide clear guidance, clinicians often recall spirited debates over the merits of crystalloids versus colloids-discussions that evoke images of early protocol introductions and even considerations of environmental impact from hospital waste. In managing patients with mild acute pancreatitis, early feeding with a low-fat solid diet initiated within 24 to 48 hours has supplanted the older practice of bowel rest. This change not only reflects scientific progress but also a fascinating evolution of nutritional philosophies that vary culturally and historically. Equally critical are the thresholds set for brain death and donation testing; before testing, patients must achieve a minimum temperature of 36\u00b0C, a systolic blood pressure of at least 100 mmHg, and a mean arterial pressure of 75 mmHg. These parameters, born from cumulative clinical experience, illustrate how seemingly minor physiological differences can have major implications in critical care, while also engaging ethical, legal, and philosophical debates.",
+        "No matching contraindication was found for 'sglt2 inhibitors' in the current knowledge graph. This limited lookup does not establish that the drug is safe for this patient."
+      ],
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector",
+        "check_contraindications"
+      ],
+      "tool_errors": [],
+      "retry_count": 0,
+      "status": "approved",
+      "validation_verdicts": [
+        "APPROVED: The answer correctly identifies euglycemic DKA as the most likely diagnosis, well-supported by the patient's symptoms, blood glucose, and empagliflozin use, directly referencing Passage 1. It also correctly infers the immediate treatment for DKA and the contraindication of continuing SGLT2 inhibitors, demonstrating good clinical reasoning beyond just direct retrieval. The answer is grounded, safe, and complete."
+      ],
+      "trace_id": "007431a5-b2f9-4cc5-9749-b941f4c3eb14",
+      "agent_latency_s": 11.497958583000582,
+      "judge_latency_s": 8.652629999996861,
+      "token_f1": 0.031545741324921134,
+      "judge": {
+        "clinical_correctness": 5,
+        "context_faithfulness": 5,
+        "answer_relevance": 5,
+        "completeness": 5,
+        "medical_safety": 5,
+        "unsupported_claims": 0,
+        "unsafe": false,
+        "reason": "The model correctly identifies euglycemic (or normoglycemic) DKA due to SGLT2 inhibitor use, aligning perfectly with the reference. The diagnosis is well-supported by the retrieved context, and the additional context regarding standard DKA treatment is medically accurate and safe."
+      },
+      "agent_error": "",
+      "judge_error": ""
+    },
+    {
+      "case_id": "case_058",
+      "question": "A 65-year-old healthy woman presents for routine health maintenance. She has never received a pneumococcal vaccine. Which pneumococcal vaccine regimen should be recommended?",
+      "reference": "PCV21",
+      "category": "unspecified",
+      "answer": "For a 65-year-old healthy woman who has never received a pneumococcal vaccine, the following regimens are advised based on current guidelines:\n\n*   **PCV20 alone**\n*   **PCV15 followed by PPSV23** after at least one year.\n\nFurther adjustments may be made based on age and underlying conditions. PCV21 is also mentioned as a recommendation for most adults unless there is an increased risk for serotype 4 infection.\n\nRegarding the PPSV23 vaccine, a check for contraindications did not find any specific warnings in the knowledge graph for a healthy individual. However, this limited lookup does not definitively establish that the drug is safe for this patient, and further clinical evaluation is always recommended before administering any medication or vaccine.",
+      "context": [
+        "No matching diseases found in knowledge graph for the given symptoms.",
+        "[Passage 1, score=0.685]\nIn the specialized area of pneumococcal and respiratory care, adults are advised to receive either PCV20 alone or PCV15 followed by PPSV23 after at least one year, with further adjustments based on age and underlying conditions. PCV21 is recommended for most adults unless there is an increased risk for serotype 4 infection, in which case alternatives are preferred. RSV vaccination is also prioritized for the elderly and those with comorbidities, reflecting its significant impact on respiratory morbidity.\n\n[Passage 2, score=0.500]\nIn the field of infectious diseases, vaccination, and antibiotic stewardship, careful antibiotic use is stressed-antibiotics should be used only after documented microbial susceptibility, and treatment durations must be adequate (typically a 14-day course rather than 10 days for certain infections). Empiric antibiotic coverage for skin and soft tissue infections should be tailored based on geographic variability; for instance, coverage for Pseudomonas aeruginosa is recommended for patients in Asia or North Africa, and diabetic foot infections may require prolonged treatment if improvement is slow. The revolutionary yet sometimes controversial fecal microbiota transplantation (FMT) is conditionally recommended for patients with a second recurrence of Clostridioides difficile infection after standard antibiotics-a treatment that has transformed our understanding of the gut microbiome. Vaccination guidelines remain among the most dynamic areas in medicine. For COVID-19, vaccination with boosters every six months and monoclonal antibody prophylaxis for patients 12 years and older with severe immunosuppression are recommended. Influenza vaccines now can be given regardless of egg allergy, while pneumococcal vaccination strategies have evolved to include PCV15, PCV20, and PCV21 in various combinations tailored to patient age and risk. RSV vaccination is strongly recommended for adults aged 75 and older, with additional guidelines for those aged 60-74 and even for high-risk individuals aged 50-59. Other vaccinations-such as those for polio and HPV (with particular attention to oncogenic types 26 and 73)-further demonstrate the depth of this field. In managing HIV, newer antiretroviral regimens such as LA CAB/RPV are considered for patients with inconsistent adherence, provided they meet specific criteria. In antifungal therapy for cryptococcal disease, escalation based solely on persistent antigen levels is discouraged, a strategy that emphasizes the need for balance in managing invasive infections. For anticoagulation, direct oral anticoagulants (DOACs) are recommended over vitamin K antagonists, and for hemorrhage management, the choice between andexanet alfa and 4-factor prothrombin complex concentrate (PCC) must be individualized. Prophylactic antibiotics-in particular, a single dose of ceftriaxone given within 12 hours of intubation in patients with moderate-to-severe traumatic brain injury-serve to reduce the risk of ventilator-associated pneumonia. Additionally, pivmecillinam is now FDA-approved for acute simple cystitis in adult females, and fungal diagnostics for Aspergillus have been refined with a lowered threshold of 500 IU/mL and improved testing methods. Pre-exposure prophylaxis with pemivibart is authorized for immunocompromised patients, and the management of systemic therapies around vaccination is carefully delineated: most therapies are continued with non-live vaccines but interrupted for live vaccines (with some exceptions). Finally, the use of glucocorticoids is limited to cases of prominent angioedema or persistent symptoms unresponsive to antihistamines.\n\n[Passage 3, score=0.368]\nIn summary, these clinical guidelines are far more than isolated recommendations; they represent the culmination of decades of research, debate, and clinical practice. Each guideline carries with it layers of historical context, nuanced discussion, and human experience, all of which enrich our understanding and ultimately serve to improve patient care. As science continues to evolve, so too will these recommendations, always balancing precision with the broader narrative of medicine.\n\n[Passage 4, score=0.316]\nMedication dosing and titration are critical areas of focus. In hospitalized patients, rapid titration protocols allow dosing up to 60 mg on day one and 100 mg by days 4 to 7. Maintenance dosing considerations recommend higher initial doses (8-16 mg/day or even higher) to reduce overdose mortality, although this approach is continuously refined with emerging data. For tofacitinib, higher doses (10 mg twice daily) carry an increased risk of venous thromboembolism (VTE) compared to lower doses (5 mg twice daily), and caution is advised with oral prednisone following pulse therapy, limiting initial doses to 40 mg/day to reduce risks of serious infections and mortality.\n\n[Passage 5, score=0.298]\nOver the years, clinical practice has evolved into a rich tapestry of evidence-based recommendations intertwined with anecdotal experiences and historical debates. The following essay presents a comprehensive discussion of guidelines spanning preoperative management, cardiovascular care, endocrine considerations, infectious diseases, oncology, critical care, neurology, medication dosing, nutritional support, and various evolving topics. Each recommendation is explained not only in terms of its practical directive but also with extensive commentary that delves into the historical context, underlying philosophy, and sometimes even the human stories behind these clinical decisions.",
+        "No matching contraindication was found for 'ppsv23' in the current knowledge graph. This limited lookup does not establish that the drug is safe for this patient."
+      ],
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector",
+        "check_contraindications"
+      ],
+      "tool_errors": [],
+      "retry_count": 1,
+      "status": "approved",
+      "validation_verdicts": [
+        "RETRY: The answer is incomplete as it explicitly states it could not complete the answer, despite the retrieved context containing relevant information about pneumococcal vaccine regimens for adults (e.g., PCV20 alone or PCV15 followed by PPSV23).",
+        "APPROVED: The answer is well-grounded in the provided context, offers safe recommendations directly supported by the text, and completely addresses the query by outlining the appropriate vaccine regimens. The safety disclaimer is also correctly included."
+      ],
+      "trace_id": "cbb47e62-2c0f-48ff-942f-ec7bcba03ec1",
+      "agent_latency_s": 13.809009375007008,
+      "judge_latency_s": 10.085432125008083,
+      "token_f1": 0.017094017094017096,
+      "judge": {
+        "clinical_correctness": 4,
+        "context_faithfulness": 5,
+        "answer_relevance": 5,
+        "completeness": 5,
+        "medical_safety": 5,
+        "unsupported_claims": 0,
+        "unsafe": false,
+        "reason": "The system answer accurately reflects the retrieved context by providing PCV20, PCV15+PPSV23, and PCV21 as options. It includes the reference answer (PCV21) but presents it alongside other valid regimens mentioned in the context, making it highly faithful and safe."
+      },
+      "agent_error": "",
+      "judge_error": ""
+    },
+    {
+      "case_id": "case_118",
+      "question": "A 28-year-old female with fentanyl use disorder is hospitalized for cellulitis. She agrees to start methadone treatment. Using the rapid titration protocol for hospitalized patients, what is the maximum target dose range for days 4-7 of treatment?",
+      "reference": "Up to 100 mg/day",
+      "category": "unspecified",
+      "answer": "For hospitalized patients undergoing rapid titration protocols for methadone treatment, the maximum target dose range for days 4-7 is 100 mg. This information is based on clinical guidelines for medication dosing and titration in hospitalized patients (Passage 1).",
+      "context": [
+        "No matching diseases found in knowledge graph for the given symptoms.",
+        "[Passage 1, score=0.598]\nMedication dosing and titration are critical areas of focus. In hospitalized patients, rapid titration protocols allow dosing up to 60 mg on day one and 100 mg by days 4 to 7. Maintenance dosing considerations recommend higher initial doses (8-16 mg/day or even higher) to reduce overdose mortality, although this approach is continuously refined with emerging data. For tofacitinib, higher doses (10 mg twice daily) carry an increased risk of venous thromboembolism (VTE) compared to lower doses (5 mg twice daily), and caution is advised with oral prednisone following pulse therapy, limiting initial doses to 40 mg/day to reduce risks of serious infections and mortality.\n\n[Passage 2, score=0.391]\nIn the realm of preoperative and perioperative management, clinicians are encouraged to assess functional capacity using the Duke Activity Status Index (DASI). With a cutoff score of greater than 34-equivalent to achieving at least 4 metabolic equivalents (METs)-this standardized measure has earned respect through years of rigorous research. The evolution of functional status tools is filled with memories of debates held over countless coffee breaks, where early attempts in the 1980s paved the way for the DASI to become an inside shorthand among clinicians. Equally important is the guidance to discontinue SGLT2 inhibitors three to four days before surgery. This is not simply a numeric directive; it reflects a deep pharmacodynamic understanding and lessons learned from numerous institutions, where anecdotal evidence has underscored the risk of ketoacidosis if these agents are not held. Moreover, the influence of such guidelines stretches even into hospital protocols and staff training, impacting medication inventory management.\n\n[Passage 3, score=0.348]\nIn summary, these clinical guidelines are far more than isolated recommendations; they represent the culmination of decades of research, debate, and clinical practice. Each guideline carries with it layers of historical context, nuanced discussion, and human experience, all of which enrich our understanding and ultimately serve to improve patient care. As science continues to evolve, so too will these recommendations, always balancing precision with the broader narrative of medicine.\n\n[Passage 4, score=0.330]\nIn endocrine, metabolic, and pregnancy care, the landscape has shifted significantly. The Endocrine Society has moved away from endorsing fixed 25(OH)D levels for vitamin D status, marking a move toward individualized care that accounts for geographic and genetic variations. Folic acid supplementation remains a cornerstone in obstetrics, with a recommendation of at least 0.4 mg before and during pregnancy-a simple directive that has had a profound impact on reducing neural tube defects and improving public health. In the realm of epilepsy, especially among women of childbearing potential, there is now a clear preference for using lamotrigine, levetiracetam, or oxcarbazepine over valproic acid and phenobarbital due to concerns about teratogenicity. Likewise, for pregnant patients with HIV, Bictegravir/FTC/TAF offers an alternative option for initial antiretroviral therapy that balances maternal and fetal health. In managing obesity, the emergence of agents such as tirzepatide and semaglutide is noteworthy, with tirzepatide at 15 mg weekly offering a mean weight loss of 15-21%, a development that intertwines cutting-edge research with broader social and economic implications. Moreover, clinicians are reminded that diabetic ketoacidosis (DKA) can present even with normal or only mildly elevated glucose levels (less than 200 mg/dL), particularly in patients on SGLT2 inhibitors-a nuance that underscores the complexity of metabolic processes and the need for vigilant diagnosis.\n\n[Passage 5, score=0.316]\nFluid resuscitation is another area where art meets science. The recommendation is to administer a 10 mL/kg bolus followed by a continuous infusion of 1.5 mL/kg per hour of lactated Ringer's solution. While these numbers provide clear guidance, clinicians often recall spirited debates over the merits of crystalloids versus colloids-discussions that evoke images of early protocol introductions and even considerations of environmental impact from hospital waste. In managing patients with mild acute pancreatitis, early feeding with a low-fat solid diet initiated within 24 to 48 hours has supplanted the older practice of bowel rest. This change not only reflects scientific progress but also a fascinating evolution of nutritional philosophies that vary culturally and historically. Equally critical are the thresholds set for brain death and donation testing; before testing, patients must achieve a minimum temperature of 36\u00b0C, a systolic blood pressure of at least 100 mmHg, and a mean arterial pressure of 75 mmHg. These parameters, born from cumulative clinical experience, illustrate how seemingly minor physiological differences can have major implications in critical care, while also engaging ethical, legal, and philosophical debates."
+      ],
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector"
+      ],
+      "tool_errors": [],
+      "retry_count": 0,
+      "status": "approved",
+      "validation_verdicts": [
+        "APPROVED: The answer accurately extracts the maximum target dose for days 4-7 (100 mg) for methadone rapid titration in hospitalized patients, directly from Passage 1. It is grounded, safe, and complete."
+      ],
+      "trace_id": "735a4d83-0f1b-4a81-aba8-6eb7f59c60de",
+      "agent_latency_s": 5.29289041699667,
+      "judge_latency_s": 5.202562457998283,
+      "token_f1": 0.09090909090909091,
+      "judge": {
+        "clinical_correctness": 5,
+        "context_faithfulness": 5,
+        "answer_relevance": 5,
+        "completeness": 5,
+        "medical_safety": 5,
+        "unsupported_claims": 0,
+        "unsafe": false,
+        "reason": "The system answer correctly identifies the maximum target dose for days 4-7 as 100 mg, which aligns perfectly with the reference answer and is fully supported by the retrieved context."
+      },
+      "agent_error": "",
+      "judge_error": ""
+    },
+    {
+      "case_id": "case_019",
+      "question": "A 39-year-old Black man whose father was diagnosed with prostate cancer at age 55 presents for preventive care. When should you recommend beginning PSA screening?",
+      "reference": "Recommend starting PSA screening next year at age 40 due to family history",
+      "category": "unspecified",
+      "answer": "Based on the clinical guidelines, prostate-specific antigen (PSA) testing is recommended to begin between the ages of 40 and 45 for individuals with a family history or high-risk genetic variants. Given that the patient is a 39-year-old Black man whose father was diagnosed with prostate cancer at age 55, he falls into this high-risk category. Therefore, you should recommend beginning annual PSA screening between ages 40 and 45.",
+      "context": [
+        "No matching diseases found in knowledge graph for the given symptoms.",
+        "[Passage 1, score=0.475]\nThe discussion then moves to cancer screening, surgical oncology, and consolidation therapies. Prostate-specific antigen (PSA) testing is recommended to begin between the ages of 40 and 45-with annual testing considered thereafter for those with a family history or high-risk genetic variants-while discussions of cessation after age 70 remain individualized. In cervical cancer management, less radical surgery, such as a simple hysterectomy with lymphadenectomy, is advised for stage IB1 disease with limited stromal invasion. Consolidation therapy in oncology is supported by evidence showing improved survival with two years of durvalumab following concurrent chemoradiation, and chemoimmunotherapy with agents like blinatumomab is recommended for certain hematologic malignancies. Targeted therapies, such as ponatinib or second-generation tyrosine kinase inhibitors for chronic myeloid leukemia and osimertinib for certain lung cancers, illustrate the push toward personalized treatment. In breast cancer, completion axillary lymph node dissection (ALND) may be omitted in patients with limited sentinel node involvement, a practice that reduces morbidity without sacrificing oncologic control. The recognition of oncogenic HPV subtypes, specifically types 26 and 73, further enriches cancer prevention strategies.\n\n[Passage 2, score=0.459]\nFinally, several miscellaneous yet evolving topics round out these guidelines. Annual screening for anal cancer using digital anorectal examinations-preceded by appropriate laboratory testing-highlights the importance of early detection. Dynamic testing for adrenal function should be reserved for cases with ongoing uncertainty. Return-to-play decisions for athletes must be a collaborative process between the physician and the athlete, while educational programs should provide at least 26 contact hours to be deemed effective. In pediatric care, HCV screening using nucleic acid testing (NAT) between 2 and 6 months is recommended, and thyroid hormone should not be administered in hemodynamically unstable, brain-dead organ donors. Literacy promotion from birth, as recommended by the American Academy of Pediatrics (AAP), underscores the broad impact of early education on lifelong development. In breast cancer management, completion axillary lymph node dissection may be omitted in selected patients, and the use of wakefulness agents for cancer-related fatigue is discouraged. Finally, the approval of pitolisant for narcolepsy-approved for patients 6 years and older in the United States-serves as a capstone to these diverse guidelines.\n\n[Passage 3, score=0.351]\nIn the specialized area of pneumococcal and respiratory care, adults are advised to receive either PCV20 alone or PCV15 followed by PPSV23 after at least one year, with further adjustments based on age and underlying conditions. PCV21 is recommended for most adults unless there is an increased risk for serotype 4 infection, in which case alternatives are preferred. RSV vaccination is also prioritized for the elderly and those with comorbidities, reflecting its significant impact on respiratory morbidity.\n\n[Passage 4, score=0.324]\nIn summary, these clinical guidelines are far more than isolated recommendations; they represent the culmination of decades of research, debate, and clinical practice. Each guideline carries with it layers of historical context, nuanced discussion, and human experience, all of which enrich our understanding and ultimately serve to improve patient care. As science continues to evolve, so too will these recommendations, always balancing precision with the broader narrative of medicine.\n\n[Passage 5, score=0.279]\nOver the years, clinical practice has evolved into a rich tapestry of evidence-based recommendations intertwined with anecdotal experiences and historical debates. The following essay presents a comprehensive discussion of guidelines spanning preoperative management, cardiovascular care, endocrine considerations, infectious diseases, oncology, critical care, neurology, medication dosing, nutritional support, and various evolving topics. Each recommendation is explained not only in terms of its practical directive but also with extensive commentary that delves into the historical context, underlying philosophy, and sometimes even the human stories behind these clinical decisions."
+      ],
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector"
+      ],
+      "tool_errors": [],
+      "retry_count": 0,
+      "status": "approved",
+      "validation_verdicts": [
+        "APPROVED: The answer is directly supported by Passage 1, correctly identifies the patient's high-risk status, and provides a complete recommendation for the timing of PSA screening."
+      ],
+      "trace_id": "69ee3c96-c622-4c4d-adcb-e2855b6662ce",
+      "agent_latency_s": 4.535714333993383,
+      "judge_latency_s": 6.580525415993179,
+      "token_f1": 0.23255813953488372,
+      "judge": {
+        "clinical_correctness": 5,
+        "context_faithfulness": 5,
+        "answer_relevance": 5,
+        "completeness": 5,
+        "medical_safety": 5,
+        "unsupported_claims": 0,
+        "unsafe": false,
+        "reason": "The system answer correctly identifies the patient as high-risk due to family history and recommends starting PSA screening between ages 40 and 45. This aligns with the retrieved context and encompasses the reference answer's recommendation of age 40. The response is safe, relevant, and fully supported by the provided text."
+      },
+      "agent_error": "",
+      "judge_error": ""
+    }
+  ]
+}

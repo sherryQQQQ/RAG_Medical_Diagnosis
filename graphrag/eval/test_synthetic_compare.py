@@ -51,6 +51,7 @@ class SyntheticCompareTests(unittest.TestCase):
         self.assertGreaterEqual(report.hybrid_graph_vector.mrr, report.vector_only.mrr)
         self.assertGreaterEqual(report.hybrid_graph_vector.top1, report.vector_only.top1)
         self.assertGreaterEqual(report.hybrid_graph_vector.top3, report.vector_only.top3)
+        self.assertGreaterEqual(report.hybrid_graph_vector.top5, report.vector_only.top5)
 
 
 if __name__ == "__main__":

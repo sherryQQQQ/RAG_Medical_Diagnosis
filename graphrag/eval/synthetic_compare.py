@@ -9,6 +9,10 @@ final/medical_generalization.csv, then compares:
 2. Hybrid graph+vector retrieval: vector ranking fused with graph-term matches
    using Reciprocal Rank Fusion.
 
+This benchmark does not call Gemini. MRR is a ranking metric, so it evaluates
+whether the correct original dataset item is retrieved, not whether a generated
+answer is well written.
+
 Run:
     python -m graphrag.main generate-synthetic-data
     python -m graphrag.main synthetic-benchmark
@@ -36,6 +40,11 @@ DEFAULT_SYNTHETIC_DATA_PATH = os.path.join(
     EVAL_DIR,
     "data",
     "synthetic_medical_retrieval.json",
+)
+DEFAULT_RETRIEVAL_RESULTS_PATH = os.path.join(
+    EVAL_DIR,
+    "data",
+    "retrieval_benchmark_results.json",
 )
 
 
@@ -90,6 +99,7 @@ class MethodMetrics:
     mrr: float
     top1: float
     top3: float
+    top5: float
 
 
 @dataclass(frozen=True)
@@ -98,7 +108,6 @@ class ComparisonReport:
     vector_only: MethodMetrics
     hybrid_graph_vector: MethodMetrics
     sample_queries: list[dict]
-
 
 def load_original_dataset(path: str = ORIGINAL_DATASET_PATH) -> list[dict]:
     """Load the original medical_generalization.csv rows."""
@@ -422,6 +431,7 @@ def evaluate(retriever, queries: list[SyntheticQuery], k: int = 5) -> MethodMetr
         mrr=sum(reciprocal_rank(results, expected) for results, expected in ranked) / n,
         top1=sum(top_k_hit(results, expected, 1) for results, expected in ranked) / n,
         top3=sum(top_k_hit(results, expected, 3) for results, expected in ranked) / n,
+        top5=sum(top_k_hit(results, expected, 5) for results, expected in ranked) / n,
     )
 
 
@@ -465,30 +475,70 @@ def compare_methods(
 
 def print_report(report: ComparisonReport) -> None:
     print("\nSynthetic Retrieval Comparison")
-    print("=" * 58)
+    print("=" * 68)
     print(f"Queries: {report.n_queries}")
-    print(f"{'Method':<24} {'MRR':>8} {'Top-1':>8} {'Top-3':>8}")
-    print("-" * 58)
+    print(f"{'Method':<34} {'MRR':>8} {'Top-1':>8} {'Top-3':>8} {'Top-5':>8}")
+    print("-" * 68)
     print(
-        f"{'Vector-only baseline':<24} "
+        f"{'Vector-only baseline':<34} "
         f"{report.vector_only.mrr:>8.3f} "
         f"{report.vector_only.top1:>8.3f} "
-        f"{report.vector_only.top3:>8.3f}"
+        f"{report.vector_only.top3:>8.3f} "
+        f"{report.vector_only.top5:>8.3f}"
     )
     print(
-        f"{'Hybrid graph+vector':<24} "
+        f"{'Hybrid graph+vector':<34} "
         f"{report.hybrid_graph_vector.mrr:>8.3f} "
         f"{report.hybrid_graph_vector.top1:>8.3f} "
-        f"{report.hybrid_graph_vector.top3:>8.3f}"
+        f"{report.hybrid_graph_vector.top3:>8.3f} "
+        f"{report.hybrid_graph_vector.top5:>8.3f}"
     )
     print("\nSample cases")
     print(json.dumps(report.sample_queries, indent=2))
 
 
+def report_to_dict(report: ComparisonReport) -> dict:
+    return {
+        "dataset": {
+            "source": "final/medical_generalization.csv",
+            "synthetic_queries": report.n_queries,
+            "metric_note": (
+                "MRR/Top-k evaluate retrieval rank of the expected original "
+                "dataset item. Gemini generation is not called for this metric."
+            ),
+        },
+        "vector_only": asdict(report.vector_only),
+        "hybrid_graph_vector": asdict(report.hybrid_graph_vector),
+        "sample_queries": report.sample_queries,
+    }
+
+
+def save_report(
+    report: ComparisonReport,
+    path: str = DEFAULT_RETRIEVAL_RESULTS_PATH,
+) -> str:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(report_to_dict(report), f, indent=2)
+        f.write("\n")
+    return path
+
+
+def run_retrieval_benchmark(
+    data_path: str = DEFAULT_SYNTHETIC_DATA_PATH,
+    results_path: str = DEFAULT_RETRIEVAL_RESULTS_PATH,
+) -> ComparisonReport:
+    report = compare_methods(data_path=data_path)
+    print_report(report)
+    saved_to = save_report(report, results_path)
+    print(f"\nResults saved to: {saved_to}")
+    return report
+
+
 def main() -> None:
     data_path = save_synthetic_dataset()
     print(f"Synthetic dataset written to: {data_path}")
-    print_report(compare_methods(data_path=data_path))
+    run_retrieval_benchmark(data_path=data_path)
 
 
 if __name__ == "__main__":

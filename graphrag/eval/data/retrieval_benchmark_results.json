@@ -1,0 +1,66 @@
+{
+  "dataset": {
+    "source": "final/medical_generalization.csv",
+    "synthetic_queries": 375,
+    "metric_note": "MRR/Top-k evaluate retrieval rank of the expected original dataset item. Gemini generation is not called for this metric."
+  },
+  "vector_only": {
+    "mrr": 0.5984,
+    "top1": 0.5413333333333333,
+    "top3": 0.648,
+    "top5": 0.688
+  },
+  "hybrid_graph_vector": {
+    "mrr": 0.8530222222222222,
+    "top1": 0.7813333333333333,
+    "top3": 0.9013333333333333,
+    "top5": 0.9706666666666667
+  },
+  "sample_queries": [
+    {
+      "query": "Find the recommendation involving considered potentially, potentially oncogenic, appropriate follow.",
+      "expected": "case_108",
+      "expected_label": "case_108: considered potentially / potentially oncogenic",
+      "vector_top1": "case_108",
+      "vector_label": "case_108: considered potentially / potentially oncogenic",
+      "hybrid_top1": "case_108",
+      "hybrid_label": "case_108: considered potentially / potentially oncogenic"
+    },
+    {
+      "query": "A 62-year-old woman with diabetes presents with a superficial foot infection involving only the skin and soft tissue, showing good response to initial antibiotic therapy. According to the 2023 guidelines, what is the typical recommended duration range for her antibiotic treatment? (Answer in weeks)",
+      "expected": "case_056",
+      "expected_label": "case_056: 1-2 / weeks",
+      "vector_top1": "case_056",
+      "vector_label": "case_056: 1-2 / weeks",
+      "hybrid_top1": "case_056",
+      "hybrid_label": "case_056: 1-2 / weeks"
+    },
+    {
+      "query": "A 55-year-old man with unresectable stage III NSCLC harboring an EGFR exon 19 deletion completes concurrent chemoradiation with stable disease on imaging. What is the appropriate next step in management?",
+      "expected": "case_110",
+      "expected_label": "case_110: initiate osimertinib / osimertinib",
+      "vector_top1": "case_037",
+      "vector_label": "case_037: monitoring appropriate / eeg monitoring",
+      "hybrid_top1": "case_109",
+      "hybrid_label": "case_109: durvalumab consolidation / initiate durvalumab"
+    },
+    {
+      "query": "Which updated guideline applies when the case includes initial antibiotic 2023, antibiotic 2023 typical, 2023 typical duration?",
+      "expected": "case_056",
+      "expected_label": "case_056: 1-2 / weeks",
+      "vector_top1": "case_101",
+      "vector_label": "case_101: ceftriaxone once / hours intubation",
+      "hybrid_top1": "case_056",
+      "hybrid_label": "case_056: 1-2 / weeks"
+    },
+    {
+      "query": "Which updated guideline applies when the case includes aspergillus sensitivity 2024, sensitivity 2024, aspergillus sensitivity?",
+      "expected": "case_074",
+      "expected_label": "case_074: immunoassay lateral / enzyme immunoassay",
+      "vector_top1": "case_061",
+      "vector_label": "case_061: 2025 moderna covid / 2024 2025 moderna",
+      "hybrid_top1": "case_074",
+      "hybrid_label": "case_074: immunoassay lateral / enzyme immunoassay"
+    }
+  ]
+}
