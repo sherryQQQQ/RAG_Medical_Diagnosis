@@ -13,6 +13,7 @@ Commands:
     robustness-generate
                       Design or generate the Stage 5 behavioral robustness dataset
     mirage-benchmark  Prepare or run the external Medical MIRAGE benchmark
+    mirage-judge      Judge scaled MIRAGE evidence and grounded generation
     mirage-corpus     Download and index the matched MedRAG Textbooks corpus
 
 Examples:
@@ -24,6 +25,7 @@ Examples:
     python -m graphrag.main e2e-benchmark --limit 10
     python -m graphrag.main robustness-generate --dry-run
     python -m graphrag.main mirage-benchmark --download --dry-run
+    python -m graphrag.main mirage-judge --help
     python -m graphrag.main mirage-corpus --dry-run
 """
 
@@ -85,6 +87,10 @@ def main():
     elif command == "mirage-benchmark":
         from graphrag.eval.mirage_benchmark import main as run_mirage_benchmark
         run_mirage_benchmark(sys.argv[2:])
+
+    elif command == "mirage-judge":
+        from graphrag.eval.mirage_judge import main as run_mirage_judge
+        run_mirage_judge(sys.argv[2:])
 
     elif command == "mirage-corpus":
         from graphrag.eval.mirage_corpus import main as run_mirage_corpus

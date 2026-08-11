@@ -31,7 +31,7 @@ MIRAGE_URL = (
     "https://raw.githubusercontent.com/gzxiong/MIRAGE/main/benchmark.json"
 )
 MIRAGE_SHA256 = "6f7f08c64cd2efe02a5d0c247229813c90db345d9dd6e3a451b5d24146d0f8fa"
-ANSWER_PARSER_VERSION = 3
+ANSWER_PARSER_VERSION = 4
 DATASET_ORDER = ("mmlu", "medqa", "medmcqa", "pubmedqa", "bioasq")
 OFFICIAL_COUNTS = {
     "mmlu": 1089,
@@ -99,6 +99,10 @@ class SystemResult:
     context_count: int = 0
     validation_verdicts: list[str] = field(default_factory=list)
     reflection_approved: bool = False
+    candidate_answers: list[str] = field(default_factory=list)
+    initial_prediction: str = ""
+    initial_correct: bool | None = None
+    provider_request_count: int = 0
 
 
 SystemRunner = Callable[[MirageCase], Mapping[str, Any]]
@@ -263,7 +267,7 @@ def parse_answer_choice(text: str, choices: set[str]) -> str:
 
     explicit = re.findall(
         r"(?i)(?:final[_ ]answer|answer[_ ]choice|answer|choice)"
-        r"\s*(?:is\s*)?(?::|=)?\s*[`*\"']*\(?([A-Z])\)?",
+        r"[`*_\"']*\s*(?:is\s*)?(?::|=)?\s*[`*\"']*\(?([A-Z])\)?",
         text,
     )
     valid = [value.upper() for value in explicit if value.upper() in normalized_choices]
@@ -369,6 +373,10 @@ def build_agent_runner() -> SystemRunner:
         messages = state.get("messages", [])
         tool_messages = [item for item in messages if isinstance(item, ToolMessage)]
         verdicts = list(state.get("validation_verdicts", []))
+        candidates = list(state.get("candidate_answers", []))
+        initial_prediction = (
+            parse_answer_choice(candidates[0], set(case.options)) if candidates else ""
+        )
         return {
             "answer": state.get("final_answer", ""),
             "status": state.get("status", "unknown"),
@@ -383,6 +391,9 @@ def build_agent_runner() -> SystemRunner:
             "reflection_approved": any(
                 verdict.startswith("APPROVED") for verdict in verdicts
             ),
+            "candidate_answers": candidates,
+            "initial_prediction": initial_prediction,
+            "initial_correct": initial_prediction == case.answer,
             "retrieved_ids": list(state.get("retrieved_ids", [])),
             "retrieval_latency_s": float(state.get("retrieval_latency_s", 0.0)),
             "context_count": int(state.get("context_count", 0)),
@@ -390,6 +401,7 @@ def build_agent_runner() -> SystemRunner:
             "input_tokens": int(state.get("input_tokens", 0)),
             "output_tokens": int(state.get("output_tokens", 0)),
             "total_tokens": int(state.get("total_tokens", 0)),
+            "provider_request_count": 2 * len(verdicts),
         }
 
     return run
@@ -515,6 +527,10 @@ def build_textbooks_agent_runner(
         messages = state.get("messages", [])
         tool_messages = [item for item in messages if isinstance(item, ToolMessage)]
         verdicts = list(state.get("validation_verdicts", []))
+        candidates = list(state.get("candidate_answers", []))
+        initial_prediction = (
+            parse_answer_choice(candidates[0], set(case.options)) if candidates else ""
+        )
         return {
             "answer": state.get("final_answer", ""),
             "status": state.get("status", "unknown"),
@@ -529,12 +545,16 @@ def build_textbooks_agent_runner(
             "reflection_approved": any(
                 verdict.startswith("APPROVED") for verdict in verdicts
             ),
+            "candidate_answers": candidates,
+            "initial_prediction": initial_prediction,
+            "initial_correct": initial_prediction == case.answer,
             "retrieved_ids": list(state.get("retrieved_ids", [])),
             "retrieval_latency_s": float(state.get("retrieval_latency_s", 0.0)),
             "context_count": int(state.get("context_count", 0)),
             "input_tokens": int(state.get("input_tokens", 0)),
             "output_tokens": int(state.get("output_tokens", 0)),
             "total_tokens": int(state.get("total_tokens", 0)),
+            "provider_request_count": 2 * len(verdicts),
             "trace_id": str(trace_id),
         }
 
@@ -562,6 +582,7 @@ def _run_textbooks_rag_case(
     return {
         "answer": _content_text(response.content),
         "status": "completed",
+        "provider_request_count": 1,
         "tool_names": ["retrieve_textbooks_bm25"],
         "retrieved_ids": [snippet.snippet_id for snippet in snippets],
         "retrieval_latency_s": retrieval_latency,
@@ -611,6 +632,22 @@ def summarize_system(
             "error_rate": sum(bool(result.error) for result in subset) / len(subset),
         }
     accuracies = [value["accuracy"] for value in per_dataset.values()]
+    has_textbooks_retrieval = bool(results) and any(
+        "retrieve_textbooks_bm25" in result.tool_names for result in results
+    )
+    has_reflection = bool(results) and any(
+        result.validation_verdicts for result in results
+    )
+    recovery_eligible = [
+        result
+        for result in results
+        if result.retry_count > 0 and result.initial_correct is False
+    ]
+    regression_eligible = [
+        result
+        for result in results
+        if result.retry_count > 0 and result.initial_correct is True
+    ]
     return {
         "n": total,
         "accuracy": correct / total if total else 0.0,
@@ -632,6 +669,14 @@ def summarize_system(
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,
         "total_tokens": sum(result.total_tokens for result in results),
+        "total_provider_requests": sum(
+            result.provider_request_count for result in results
+        ),
+        "average_provider_requests": statistics.fmean(
+            result.provider_request_count for result in results
+        )
+        if results
+        else 0.0,
         "estimated_cost_usd": (
             total_input_tokens * float(pricing["input"])
             + total_output_tokens * float(pricing["output_including_thinking"])
@@ -653,31 +698,71 @@ def summarize_system(
             for result in results
         )
         else None,
+        "tool_success_rate": statistics.fmean(
+            float(
+                "retrieve_textbooks_bm25" in result.tool_names
+                and not result.tool_errors
+            )
+            for result in results
+        )
+        if has_textbooks_retrieval
+        else None,
+        "tool_error_rate": statistics.fmean(
+            float(bool(result.tool_errors)) for result in results
+        )
+        if has_textbooks_retrieval
+        else None,
         "retrieval_success_rate": statistics.fmean(
             float(result.context_count > 0) for result in results
         )
-        if results and any("retrieve_textbooks_bm25" in result.tool_names for result in results)
+        if has_textbooks_retrieval
+        else None,
+        "empty_retrieval_rate": statistics.fmean(
+            float(result.context_count == 0) for result in results
+        )
+        if has_textbooks_retrieval
         else None,
         "average_retrieval_latency_s": statistics.fmean(
             result.retrieval_latency_s for result in results
         )
-        if results and any("retrieve_textbooks_bm25" in result.tool_names for result in results)
+        if has_textbooks_retrieval
         else None,
         "average_context_count": statistics.fmean(
             result.context_count for result in results
         )
-        if results and any("retrieve_textbooks_bm25" in result.tool_names for result in results)
+        if has_textbooks_retrieval
         else None,
         "reflection_approval_rate": statistics.fmean(
             float(result.reflection_approved) for result in results
         )
-        if results and any(result.validation_verdicts for result in results)
+        if has_reflection
+        else None,
+        "retry_rate": statistics.fmean(
+            float(result.retry_count > 0) for result in results
+        )
+        if has_reflection
         else None,
         "average_retry_count": statistics.fmean(
             result.retry_count for result in results
         )
-        if results and any(result.validation_verdicts for result in results)
+        if has_reflection
         else None,
+        "retry_recovery_rate": statistics.fmean(
+            float(result.correct) for result in recovery_eligible
+        )
+        if recovery_eligible
+        else None,
+        "retry_recovery_eligible_n": len(recovery_eligible),
+        "retry_recovered_n": sum(result.correct for result in recovery_eligible),
+        "retry_regression_rate": statistics.fmean(
+            float(not result.correct) for result in regression_eligible
+        )
+        if regression_eligible
+        else None,
+        "retry_regression_eligible_n": len(regression_eligible),
+        "retry_regressed_n": sum(
+            not result.correct for result in regression_eligible
+        ),
         "per_dataset": per_dataset,
     }
 
@@ -749,6 +834,10 @@ def _report(
                 comparisons[f"{system}_vs_closed-book"] = paired_comparison(
                     by_system["closed-book"], by_system[system]
                 )
+    if "textbooks-rag" in by_system and "textbooks-agent" in by_system:
+        comparisons["textbooks-agent_vs_textbooks-rag"] = paired_comparison(
+            by_system["textbooks-rag"], by_system["textbooks-agent"]
+        )
     return {
         "evaluation_type": "external_medical_mirage_exact_choice",
         "benchmark": {
@@ -790,21 +879,34 @@ def _load_reusable_results(
     cases: list[MirageCase],
     systems: list[str],
     generation_model: str,
+    source_path: Path,
+    system_metadata: Mapping[str, Any] | None = None,
 ) -> dict[tuple[str, str], SystemResult]:
-    """Import compatible results from another report without repeating API calls."""
+    """Import a compatible subset without repeating completed paid case runs."""
     saved = json.loads(path.read_text(encoding="utf-8"))
-    if saved.get("benchmark", {}).get("selection_fingerprint") != dataset_fingerprint(
-        cases
-    ):
-        raise ValueError("Reusable checkpoint uses a different case selection")
+    benchmark = saved.get("benchmark", {})
+    if benchmark.get("source_sha256") != _sha256(source_path):
+        raise ValueError("Reusable checkpoint uses a different benchmark source")
+    if not benchmark.get("question_only_retrieval"):
+        raise ValueError("Reusable checkpoint did not enforce question-only retrieval")
     if saved.get("generation_model") != generation_model:
         raise ValueError("Reusable checkpoint uses a different generation model")
+
+    saved_metadata = saved.get("system_metadata", {})
+    current_metadata = dict(system_metadata or {})
+    for system in systems:
+        if system in saved_metadata and saved_metadata[system] != current_metadata.get(system):
+            raise ValueError(
+                f"Reusable checkpoint metadata differs for system {system}"
+            )
 
     case_by_id = {case.case_id: case for case in cases}
     parser_changed = saved.get("answer_parser_version") != ANSWER_PARSER_VERSION
     reusable: dict[tuple[str, str], SystemResult] = {}
     for item in saved.get("results", []):
         result = SystemResult(**item)
+        if result.error:
+            continue
         case = case_by_id.get(result.case_id)
         if case is None or result.system not in systems:
             continue
@@ -815,12 +917,26 @@ def _load_reusable_results(
         ):
             raise ValueError(f"Reusable result does not match case {result.case_id}")
         if parser_changed and not result.error:
-            result.prediction = parse_answer_choice(
-                result.raw_answer, set(case.options)
+            _rescore_result(result, case)
+        if not result.error and result.provider_request_count == 0:
+            result.provider_request_count = (
+                2 * len(result.validation_verdicts)
+                if result.system == "textbooks-agent"
+                else 1
             )
-            result.correct = result.prediction == result.gold_choice
         reusable[(result.case_id, result.system)] = result
     return reusable
+
+
+def _rescore_result(result: SystemResult, case: MirageCase) -> None:
+    """Apply the current parser to saved final and first-draft outputs."""
+    result.prediction = parse_answer_choice(result.raw_answer, set(case.options))
+    result.correct = result.prediction == result.gold_choice
+    if result.candidate_answers:
+        result.initial_prediction = parse_answer_choice(
+            result.candidate_answers[0], set(case.options)
+        )
+        result.initial_correct = result.initial_prediction == result.gold_choice
 
 
 def run_benchmark(
@@ -845,13 +961,24 @@ def run_benchmark(
                 f"Reusable checkpoint not found: {reuse_results_from}"
             )
         imported = _load_reusable_results(
-            reuse_results_from, cases, systems, generation_model
+            reuse_results_from,
+            cases,
+            systems,
+            generation_model,
+            source_path,
+            system_metadata,
         )
         previous.update(imported)
         reuse_metadata = {
             "source": str(reuse_results_from),
             "matched_results": len(imported),
+            "saved_case_runs": len(imported),
+            # Retained for backward-compatible report readers. An Agent case may
+            # contain multiple provider requests because reflection can retry.
             "saved_model_calls": len(imported),
+            "saved_provider_requests": sum(
+                result.provider_request_count for result in imported.values()
+            ),
         }
     if resume and output_path.exists():
         saved = json.loads(output_path.read_text(encoding="utf-8"))
@@ -874,10 +1001,7 @@ def run_benchmark(
                 continue
             if parser_changed and result.case_id in case_by_id and not result.error:
                 case = case_by_id[result.case_id]
-                result.prediction = parse_answer_choice(
-                    result.raw_answer, set(case.options)
-                )
-                result.correct = result.prediction == result.gold_choice
+                _rescore_result(result, case)
             previous[(result.case_id, result.system)] = result
 
     results: list[SystemResult] = []
@@ -924,6 +1048,16 @@ def run_benchmark(
                 context_count=int(output.get("context_count", 0)),
                 validation_verdicts=list(output.get("validation_verdicts", [])),
                 reflection_approved=bool(output.get("reflection_approved", False)),
+                candidate_answers=list(output.get("candidate_answers", [])),
+                initial_prediction=str(output.get("initial_prediction", "")),
+                initial_correct=(
+                    bool(output["initial_correct"])
+                    if "initial_correct" in output
+                    else None
+                ),
+                provider_request_count=int(
+                    output.get("provider_request_count", 0 if error else 1)
+                ),
             )
             results.append(result)
             report = _report(

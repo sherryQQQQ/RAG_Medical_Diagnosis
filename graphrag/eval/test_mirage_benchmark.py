@@ -7,6 +7,7 @@ from unittest.mock import patch
 from graphrag.eval.mirage_benchmark import (
     DATASET_ORDER,
     MirageCase,
+    SystemResult,
     _build_textbooks_retrieval_tool,
     _run_textbooks_rag_case,
     load_benchmark,
@@ -187,6 +188,8 @@ class MirageBenchmarkTests(unittest.TestCase):
         self.assertEqual(parse_answer_choice('{"answer_choice":"B"}', choices), "B")
         self.assertEqual(parse_answer_choice("Reasoning. FINAL_ANSWER: C", choices), "C")
         self.assertEqual(parse_answer_choice("**(A)**", choices), "A")
+        self.assertEqual(parse_answer_choice('`answer_choice`: "B"', choices), "B")
+        self.assertEqual(parse_answer_choice("**answer_choice**: C. maybe", choices), "C")
         self.assertEqual(parse_answer_choice(r"The final answer is $\boxed{D}$", choices), "D")
         self.assertEqual(
             parse_answer_choice(
@@ -311,6 +314,47 @@ class MirageBenchmarkTests(unittest.TestCase):
                 5,
             )
 
+    def test_imports_nested_pilot_subset_into_scaled_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "benchmark.json"
+            source.write_text(json.dumps(_fixture()), encoding="utf-8")
+            all_cases = load_benchmark(source, enforce_official_counts=False)
+            pilot_cases = stratified_sample(all_cases, 5, 13)
+            scaled_cases = stratified_sample(all_cases, 10, 13)
+            pilot_output = Path(directory) / "pilot.json"
+            scaled_output = Path(directory) / "scaled.json"
+
+            def runner(case):
+                return {"answer": '{"answer_choice":"' + case.answer + '"}'}
+
+            run_benchmark(
+                pilot_cases,
+                {"closed-book": runner},
+                pilot_output,
+                source,
+                generation_model="fake-model",
+                resume=False,
+            )
+            scaled_calls = []
+
+            def scaled_runner(case):
+                scaled_calls.append(case.case_id)
+                return {"answer": '{"answer_choice":"' + case.answer + '"}'}
+
+            report = run_benchmark(
+                scaled_cases,
+                {"closed-book": scaled_runner},
+                scaled_output,
+                source,
+                generation_model="fake-model",
+                resume=False,
+                reuse_results_from=pilot_output,
+            )
+
+            self.assertEqual(len(scaled_calls), 5)
+            self.assertEqual(report["reused_checkpoint"]["matched_results"], 5)
+            self.assertEqual(report["metrics"]["closed-book"]["n"], 10)
+
     def test_summary_and_paired_mcnemar_counts(self):
         from graphrag.eval.mirage_benchmark import SystemResult
 
@@ -334,6 +378,7 @@ class MirageBenchmarkTests(unittest.TestCase):
                 output_tokens=1,
                 total_tokens=2,
                 context_count=1 if system == "textbooks-rag" else 0,
+                provider_request_count=1,
             )
 
         baseline = [result("1", "closed-book", False), result("2", "closed-book", True)]
@@ -346,10 +391,50 @@ class MirageBenchmarkTests(unittest.TestCase):
         self.assertEqual(priced["total_input_tokens"], 2)
         self.assertEqual(priced["total_output_tokens"], 2)
         self.assertAlmostEqual(priced["estimated_cost_usd"], 0.0000056)
+        self.assertEqual(priced["total_provider_requests"], 2)
         comparison = paired_comparison(baseline, agent)
         self.assertEqual(comparison["candidate_wins"], 1)
         self.assertEqual(comparison["baseline_wins"], 0)
         self.assertEqual(comparison["accuracy_delta"], 0.5)
+
+    def test_retry_recovery_and_regression_use_correct_denominators(self):
+        def result(case_id, initial_correct, final_correct):
+            return SystemResult(
+                case_id=case_id,
+                dataset="mmlu",
+                source_id=case_id,
+                system="textbooks-agent",
+                gold_choice="A",
+                prediction="A" if final_correct else "B",
+                correct=final_correct,
+                raw_answer="",
+                latency_s=1.0,
+                status="approved",
+                error="",
+                tool_names=["retrieve_textbooks_bm25"],
+                tool_errors=[],
+                retry_count=1,
+                input_tokens=1,
+                output_tokens=1,
+                total_tokens=2,
+                validation_verdicts=["RETRY: revise", "APPROVED: done"],
+                initial_correct=initial_correct,
+            )
+
+        metrics = summarize_system(
+            [
+                result("recovered", False, True),
+                result("still-wrong", False, False),
+                result("regressed", True, False),
+                result("still-correct", True, True),
+            ]
+        )
+        self.assertEqual(metrics["retry_recovery_eligible_n"], 2)
+        self.assertEqual(metrics["retry_recovered_n"], 1)
+        self.assertEqual(metrics["retry_recovery_rate"], 0.5)
+        self.assertEqual(metrics["retry_regression_eligible_n"], 2)
+        self.assertEqual(metrics["retry_regressed_n"], 1)
+        self.assertEqual(metrics["retry_regression_rate"], 0.5)
 
 
 if __name__ == "__main__":

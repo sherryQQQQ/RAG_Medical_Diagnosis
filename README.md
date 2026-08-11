@@ -721,6 +721,183 @@ Reflector improved caution but optimized groundedness against exact-choice task
 compliance; future work should explicitly define whether insufficient evidence
 requires abstention or a forced benchmark choice and score both behaviors.
 
+### Stage 5H — 100-Case Scaled Matched-Corpus Evaluation
+
+Goal: scale the controlled comparison to 100 cases before considering the
+500-case final benchmark. The frozen seed-13 sample contains 20 cases from each
+MIRAGE sub-dataset. Closed-book, `textbooks-rag`, and `textbooks-agent` use the
+same questions and Gemini model; the matched-corpus systems additionally share
+the MedRAG Textbooks corpus, SQLite FTS5 BM25, top-k 8, question-only retrieval,
+and generation instruction. The primary variable is LangGraph orchestration and
+reflection.
+
+The 10-case Stage 5G sample is a strict subset of the 100-case sample. Stage 5H
+extended checkpoint import to validate and reuse compatible subsets by pinned
+benchmark hash, question-only retrieval policy, model, and system metadata. It
+imported all 30 prior system-case results, representing 48 completed provider
+requests, before executing the remaining 270 system-case runs. Raw generation
+and judge checkpoints remain under the gitignored `graphrag/eval/external/`
+directory.
+
+Reproduce the generation run:
+
+~~~bash
+PYTHONUNBUFFERED=1 .venv.nosync/bin/python -m graphrag.main mirage-benchmark \
+  --limit 100 \
+  --seed 13 \
+  --systems closed-book textbooks-rag textbooks-agent \
+  --output graphrag/eval/external/mirage/textbooks_scaled_results.json \
+  --reuse-results-from \
+    graphrag/eval/external/mirage/textbooks_agent_results.json
+~~~
+
+One checkpointed judge request per case evaluates the shared top-8 evidence and
+both matched-corpus outputs together. This produces evidence-sufficiency,
+faithfulness, unsupported-claim, conflict-handling, and failure-slice metrics
+without paying twice to judge identical retrieval:
+
+~~~bash
+PYTHONUNBUFFERED=1 .venv.nosync/bin/python -m graphrag.main mirage-judge \
+  --generation-report \
+    graphrag/eval/external/mirage/textbooks_scaled_results.json \
+  --output \
+    graphrag/eval/external/mirage/textbooks_scaled_judgments.json \
+  --model gemini-2.5-flash
+~~~
+
+Final parser-v4 primary result:
+
+| Metric | Closed-book | Textbooks RAG | Textbooks Agent |
+|---|---:|---:|---:|
+| Exact-choice accuracy | 0.84 | 0.78 | 0.62 |
+| Macro dataset accuracy | 0.84 | 0.78 | 0.62 |
+| Wilson 95% CI | [0.756, 0.899] | [0.689, 0.850] | [0.522, 0.709] |
+| Invalid-choice rate | 0.00 | 0.00 | 0.10 |
+| Provider-error rate | 0.00 | 0.00 | 0.01 |
+
+Per-dataset accuracy:
+
+| Dataset | Closed-book | Textbooks RAG | Textbooks Agent |
+|---|---:|---:|---:|
+| MMLU | 0.90 | 0.90 | 0.70 |
+| MedQA | 0.90 | 0.90 | 0.65 |
+| MedMCQA | 0.80 | 0.70 | 0.45 |
+| PubMedQA | 0.70 | 0.60 | 0.50 |
+| BioASQ | 0.90 | 0.80 | 0.80 |
+
+Paired exact-choice comparisons:
+
+| Candidate vs baseline | Wins | Losses | Ties | Accuracy delta | Exact McNemar p |
+|---|---:|---:|---:|---:|---:|
+| Textbooks RAG vs closed-book | 5 | 11 | 84 | -0.06 | 0.2101 |
+| Textbooks Agent vs Textbooks RAG | 0 | 16 | 84 | -0.16 | 0.0000305 |
+| Textbooks Agent vs closed-book | 4 | 26 | 70 | -0.22 | 0.0000595 |
+
+The scaled result changes the interpretation of the 10-case pilot. Matched RAG
+is six percentage points below closed-book, but the paired difference is not
+statistically significant at this sample size. The Agent is significantly worse
+than matched RAG: reflection produced no paired exact-choice wins and 16 losses.
+
+Retrieval and judged generation metrics:
+
+| Metric | Result |
+|---|---:|
+| Non-empty BM25 retrieval | 1.00 |
+| Empty retrieval rate | 0.00 |
+| Average retrieval latency | 0.345 s |
+| Evidence sufficiency rate | 0.51 |
+| Judged Recall@8 | 0.518 |
+| Relevant-context rate | 0.201 |
+| Outdated-corpus rate | 0.01 |
+| RAG accuracy, sufficient / insufficient evidence | 0.980 / 0.571 |
+| Agent accuracy, sufficient / insufficient evidence | 0.961 / 0.265 |
+| RAG faithfulness / unsupported-claim rate | 0.71 / 0.25 |
+| Agent faithfulness / unsupported-claim rate | 0.87 / 0.06 |
+| Average unsupported claims, RAG / Agent | 0.31 / 0.06 |
+
+Every query returned eight passages, but the judge considered only 20.1% of
+those passages relevant and the complete top-8 evidence sufficient for only 51%
+of cases. Non-empty retrieval therefore materially overstates retrieval quality.
+When evidence was sufficient, both matched systems were highly accurate. When it
+was insufficient, RAG retained 57.1% accuracy while the Agent fell to 26.5% as
+reflection increasingly rejected or rewrote answers not supported by the
+textbooks. No genuine evidence-conflict cases occurred, so conflict-handling is
+reported as not estimable rather than as a perfect score; Stage 5I injects this
+condition explicitly.
+
+Agent orchestration metrics:
+
+| Metric | Textbooks Agent |
+|---|---:|
+| Reflection approval rate | 0.97 |
+| Retry-case rate | 0.24 |
+| Average retries | 0.33 |
+| Retry recovery | 0/7 (0.00) |
+| Correct-first-draft regression | 11/14 (0.786) |
+| Retrieval tool success | 0.99 |
+| Tool-error rate | 0.00 |
+
+Initial-draft tracking is available for 89 newly generated Agent cases; the ten
+reused pilot cases predate that field and one case ended in a provider error.
+Among traceable retries, reflection recovered none of seven initially wrong
+answers and changed 11 of 14 initially correct answers into wrong or invalid
+final outputs. The 0.97 approval rate is therefore not a quality metric by
+itself: the Reflector often approved a grounded refusal that violated the
+benchmark's required exact choice.
+
+System performance and recorded paid-tier cost:
+
+| Metric | Closed-book | Textbooks RAG | Textbooks Agent |
+|---|---:|---:|---:|
+| p50 latency | 3.48 s | 8.48 s | 15.05 s |
+| p95 latency | 13.57 s | 21.40 s | 63.28 s |
+| Input tokens | 16,432 | 170,982 | 558,732 |
+| Output tokens | 93,553 | 198,270 | 411,838 |
+| Total tokens | 109,985 | 369,252 | 970,570 |
+| Logical provider requests | 100 | 100 | 260 |
+| Equivalent cost | US$0.2388 | US$0.5470 | US$1.1972 |
+
+The 100 combined judge calls used 332,703 input and 112,668 output tokens, cost
+US$0.3815, and had p50/p95 latency of 5.56/6.42 seconds with zero judge errors.
+After subtracting the reused pilot checkpoints, the recorded new Stage 5H spend
+was approximately US$2.16; the full 100-case generation plus judging equivalent
+cost was US$2.36. Timed-out requests returned no token usage and are not included
+in that estimate.
+
+The Agent used 2.63 times the RAG tokens, cost 2.19 times as much, increased p50
+latency by 1.77 times and p95 latency by 2.96 times, yet lost 16 accuracy points.
+Its benefit was more conservative grounding: faithfulness improved by 16 points
+and unsupported-claim rate fell by 19 points. The next Agent change should not
+add more reflection; it should distinguish "unsupported by retrieved evidence"
+from "necessarily wrong," preserve a correct definite draft when task policy
+requires a choice, and expose abstention as a separately scored behavior.
+
+Failure slicing assigned every wrong/invalid answer one primary root cause:
+
+| Failure category | Textbooks RAG | Textbooks Agent |
+|---|---:|---:|
+| Knowledge missing | 14 | 22 |
+| Retrieval failure | 5 | 12 |
+| Generation failure | 2 | 3 |
+| Outdated corpus | 1 | 1 |
+| **Total failures** | **22** | **38** |
+
+One Agent case repeatedly returned Gemini 504 and remains a generation/provider
+failure, preserving a measured 1% provider-error rate instead of retrying the
+reliability signal away. A second evaluator bug was found without new model
+calls: parser v3 rejected explicit Markdown-formatted finals such as
+`` `answer_choice`: "B" ``. Parser v4 accepts formatting around the final-answer
+key while retaining v3's protection against incidental choices in reasoning,
+then re-scores saved raw outputs. This changed RAG from an apparent 0.66 with
+15% invalid choices to 0.78 with no invalid choices; Agent changed from 0.60 to
+0.62. Raw-output retention and evaluator versioning again prevented extra API
+cost and a false system conclusion.
+
+Stage 5H is stable enough to diagnose the current design, but its result argues
+against paying for 500 cases with the unchanged Reflector. Stage 5I should first
+measure robustness and abstention policy explicitly, then a revised Agent can be
+re-evaluated on this frozen 100-case checkpoint before a final 500-case run.
+
 ## Metrics by System Stage
 
 Different stages require different metrics. Adding more metrics is useful only
@@ -816,6 +993,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.eval.test_e2e_benchmark \
   graphrag.eval.test_mirage_corpus \
   graphrag.eval.test_mirage_benchmark \
+  graphrag.eval.test_mirage_judge \
   graphrag.eval.test_robustness_generate \
   graphrag.eval.test_synthetic_compare -v
 ~~~
@@ -831,6 +1009,7 @@ graphrag/
   eval/
     e2e_benchmark.py           final-answer evaluation and local traces
     mirage_benchmark.py        external Medical MIRAGE adapter and evaluator
+    mirage_judge.py            evidence/generation judge and failure slicer
     mirage_corpus.py           pinned Textbooks download and local BM25 index
     robustness_generate.py     behavioral robustness dataset generator
     synthetic_compare.py       retrieval-only comparison
