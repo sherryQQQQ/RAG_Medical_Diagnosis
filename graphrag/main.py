@@ -10,6 +10,8 @@ Commands:
     synthetic-benchmark
                       Compare vector-only vs hybrid retrieval on generated synthetic data
     e2e-benchmark     Evaluate final Agent answers with traces and an LLM judge
+    robustness-generate
+                      Design or generate the Stage 5 behavioral robustness dataset
 
 Examples:
     python -m graphrag.main build-kg
@@ -18,6 +20,7 @@ Examples:
     python -m graphrag.main generate-synthetic-data
     python -m graphrag.main synthetic-benchmark
     python -m graphrag.main e2e-benchmark --limit 10
+    python -m graphrag.main robustness-generate --dry-run
 """
 
 import sys
@@ -70,6 +73,10 @@ def main():
     elif command == "e2e-benchmark":
         from graphrag.eval.e2e_benchmark import main as run_e2e_benchmark
         run_e2e_benchmark(sys.argv[2:])
+
+    elif command == "robustness-generate":
+        from graphrag.eval.robustness_generate import main as run_robustness_generate
+        run_robustness_generate(sys.argv[2:])
 
     else:
         print(f"Unknown command: {command}")

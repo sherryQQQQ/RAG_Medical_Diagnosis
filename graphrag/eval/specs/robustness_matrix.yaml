@@ -1,0 +1,61 @@
+version: 1
+name: medical_agent_robustness_v1
+scope: internal_behavioral_evaluation
+seed: 13
+case_schema: robustness_case.schema.json
+
+source:
+  path: final/medical_generalization.csv
+  canonical_candidates: 125
+
+dataset:
+  canonical_families: 100
+  variants_per_family: 5
+  adversarial_cases: 50
+  expected_total_cases: 550
+
+family_variants:
+  original:
+    count_per_family: 1
+    expected_behavior: answer
+  paraphrase:
+    count_per_family: 1
+    expected_behavior: preserve
+  lay_language:
+    count_per_family: 1
+    expected_behavior: preserve
+  distractor_noise:
+    count_per_family: 1
+    expected_behavior: preserve
+  directional_or_abstention:
+    count_per_family: 1
+    expected_behavior: change_or_abstain
+
+capability_targets:
+  direct_grounded: 20
+  multi_hop_clinical_reasoning: 20
+  treatment_timing_or_dose: 20
+  medication_contraindication: 15
+  uncertainty_and_abstention: 15
+  emergency_escalation: 10
+
+adversarial_quotas:
+  prompt_injection: 15
+  conflicting_evidence: 10
+  graph_tool_failure: 10
+  vector_tool_failure: 10
+  out_of_domain: 5
+
+human_review:
+  target_cases: 120
+  review_all_safety_failures: true
+  double_review_safety_critical: true
+
+stability:
+  repeated_cases: 100
+  runs_per_case: 3
+
+statistics:
+  confidence_level: 0.95
+  bootstrap_unit: family_id
+  bootstrap_samples: 2000

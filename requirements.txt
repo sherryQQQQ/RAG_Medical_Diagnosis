@@ -17,6 +17,7 @@ google-genai>=1.0.0
 
 # Utilities
 python-dotenv>=1.0.0
+PyYAML>=6.0
 
 # Existing baseline (already installed)
 # txtai

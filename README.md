@@ -17,6 +17,7 @@ medical device.
 | 2 | Validated Neo4j knowledge graph | Complete | 15/15 chunks imported, schema/path validation passed |
 | 3 | Bounded safety-gated LangGraph Agent | Complete | 5/5 online smoke cases passed |
 | 4 | End-to-end evaluation and observability | Complete | Frozen 5-case run, independent judge, local traces |
+| 5A | Robustness dataset design | Complete | Versioned 550-case matrix, schema, offline dry-run |
 
 ## Architecture
 
@@ -241,6 +242,71 @@ F1 is retained as a diagnostic rather than the primary medical QA metric.
 Because n=5 is small, these numbers are a pipeline-level preliminary evaluation,
 not a deployment or clinical-validity claim.
 
+### Stage 5A — Robustness Dataset Design
+
+Goal: replace a small aggregate evaluation with a versioned behavioral test
+matrix that can distinguish system robustness from evaluator robustness before
+paying for a large API run.
+
+Implemented:
+
+- Deterministically select 100 independent canonical families from the 125-row
+  medical QA source dataset.
+- Generate five cases per family: original, paraphrase, lay-language rewrite,
+  irrelevant-noise variant, and either a directional-change or abstention case.
+- Reserve 50 additional cases for prompt injection, conflicting evidence,
+  Graph failure, Vector failure, and out-of-domain behavior.
+- Record family/source IDs, expected behavior, gold facts, forbidden claims,
+  safety severity, paired-case links, fault injection, review status, and model
+  provenance for every case.
+- Publish a machine-readable JSON Schema for the per-case contract.
+- Validate exact quotas, unique IDs, non-empty references, preserving-pair
+  invariants, source/spec fingerprints, and dataset completeness.
+- Checkpoint after each generated family and reuse completed paid calls on resume.
+- Define `family_id` as the statistical bootstrap unit so correlated rewrites are
+  not incorrectly counted as independent evidence.
+
+Planned dataset:
+
+| Slice | Cases |
+|---|---:|
+| 100 canonical questions x 5 behavioral variants | 500 |
+| Prompt injection | 15 |
+| Conflicting evidence | 10 |
+| Graph tool unavailable | 10 |
+| Vector tool unavailable | 10 |
+| Out of domain | 5 |
+| **Total** | **550** |
+
+Behavioral and adversarial quotas are hard constraints. Clinical capability
+counts are soft coverage targets: the completed generator reports target gaps,
+and Stage 5B must resample or review a mismatch instead of relabeling an
+incompatible source question merely to make the table balance.
+
+The source questions have been used during internal project development, so
+this suite is explicitly labeled `internal_behavioral_evaluation`. It tests
+metamorphic consistency and failure handling; it is not presented as an
+external clinical-validation set.
+
+Offline design validation, with zero external calls:
+
+~~~bash
+.venv.nosync/bin/python -m graphrag.main robustness-generate --dry-run
+~~~
+
+Generate and checkpoint the frozen candidate dataset (Stage 5B, external Gemini
+calls; run only after reviewing a small sample and approving the cost):
+
+~~~bash
+.venv.nosync/bin/python -m graphrag.main robustness-generate --no-resume
+~~~
+
+The frozen specification is stored in
+`graphrag/eval/specs/robustness_matrix.yaml`, with the formal case contract in
+`graphrag/eval/specs/robustness_case.schema.json`. Stage 5A does not run the
+Agent or claim robustness results; it establishes the test contract for Stage
+5B onward.
+
 ## Metrics by System Stage
 
 Different stages require different metrics. Adding more metrics is useful only
@@ -254,6 +320,8 @@ when each metric diagnoses a distinct failure mode.
 | Answer quality | Correctness, faithfulness, relevance, completeness | Final answer does not match the reference or evidence |
 | Medical safety | Safety score, unsafe-answer rate, unsupported claims | Answer may create clinical risk or false reassurance |
 | System performance | Pipeline/judge success, p50/p95 Agent latency | Reliability or user-facing performance is poor |
+| Behavioral robustness | Invariance, directional consistency, abstention F1, recovery rate, worst slice | Behavior changes incorrectly under controlled perturbations |
+| Evaluator reliability | Human/Judge agreement, order/verbosity sensitivity, repeatability | The metric may be unstable even when the Agent output is unchanged |
 
 Retrieval metrics cannot establish final answer quality. Likewise, a high
 answer-quality score cannot identify whether weak retrieval, routing, generation,

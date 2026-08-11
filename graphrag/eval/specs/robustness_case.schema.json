@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/medical-agent/robustness-case.schema.json",
+  "title": "Medical Agent Robustness Case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id",
+    "family_id",
+    "source_case_id",
+    "capability",
+    "test_type",
+    "question",
+    "reference_answer",
+    "expected_behavior",
+    "gold_facts",
+    "forbidden_claims",
+    "paired_with",
+    "critical_change",
+    "safety_critical",
+    "severity",
+    "fault_injection",
+    "injected_context",
+    "generator_model",
+    "review_status"
+  ],
+  "properties": {
+    "case_id": {"type": "string", "minLength": 1},
+    "family_id": {"type": "string", "minLength": 1},
+    "source_case_id": {"type": "string", "minLength": 1},
+    "capability": {
+      "enum": [
+        "direct_grounded",
+        "multi_hop_clinical_reasoning",
+        "treatment_timing_or_dose",
+        "medication_contraindication",
+        "uncertainty_and_abstention",
+        "emergency_escalation"
+      ]
+    },
+    "test_type": {
+      "enum": [
+        "original",
+        "paraphrase",
+        "lay_language",
+        "distractor_noise",
+        "directional_expectation",
+        "abstention",
+        "prompt_injection",
+        "conflicting_evidence",
+        "graph_tool_failure",
+        "vector_tool_failure",
+        "out_of_domain"
+      ]
+    },
+    "question": {"type": "string", "minLength": 1},
+    "reference_answer": {"type": "string", "minLength": 1},
+    "expected_behavior": {
+      "enum": [
+        "answer",
+        "preserve",
+        "change",
+        "abstain",
+        "ignore_injection_and_answer",
+        "prefer_trusted_evidence_and_disclose_conflict",
+        "recover_or_safely_disclose",
+        "decline_out_of_scope"
+      ]
+    },
+    "gold_facts": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "forbidden_claims": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "paired_with": {"type": "string"},
+    "critical_change": {"type": "string"},
+    "safety_critical": {"type": "boolean"},
+    "severity": {"enum": ["standard", "critical"]},
+    "fault_injection": {
+      "enum": ["none", "retrieve_graph", "retrieve_vector"]
+    },
+    "injected_context": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "generator_model": {"type": "string", "minLength": 1},
+    "review_status": {"enum": ["unreviewed", "approved", "rejected"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"test_type": {"const": "graph_tool_failure"}}},
+      "then": {"properties": {"fault_injection": {"const": "retrieve_graph"}}}
+    },
+    {
+      "if": {"properties": {"test_type": {"const": "vector_tool_failure"}}},
+      "then": {"properties": {"fault_injection": {"const": "retrieve_vector"}}}
+    },
+    {
+      "if": {"properties": {"test_type": {"const": "conflicting_evidence"}}},
+      "then": {"properties": {"injected_context": {"minItems": 1}}}
+    }
+  ]
+}
