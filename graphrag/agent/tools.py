@@ -20,6 +20,19 @@ _vector_retriever: VectorRetriever | None = None
 _graph_retriever: GraphRetriever | None = None
 
 
+def _parse_string_list(raw: str) -> list[str]:
+    """Normalize a tool argument without trusting the model's JSON shape."""
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        parsed = raw.split(",")
+    if isinstance(parsed, str):
+        parsed = [parsed]
+    if not isinstance(parsed, list):
+        return []
+    return [str(item).strip() for item in parsed if str(item).strip()]
+
+
 def _get_vector() -> VectorRetriever:
     global _vector_retriever
     if _vector_retriever is None:
@@ -32,6 +45,11 @@ def _get_graph() -> GraphRetriever:
     if _graph_retriever is None:
         _graph_retriever = GraphRetriever()
     return _graph_retriever
+
+
+def find_known_drugs(text: str) -> list[str]:
+    """Internal safety helper; intentionally not exposed as an LLM tool."""
+    return _get_graph().find_drugs_in_text(text)
 
 
 @tool
@@ -63,10 +81,7 @@ def retrieve_graph(
     Use this when you have identified specific symptoms to look up structured diagnostic paths.
     Returns diseases, treatments, drugs, and contraindications.
     """
-    try:
-        symptom_list: list[str] = json.loads(symptoms)
-    except json.JSONDecodeError:
-        symptom_list = [s.strip() for s in symptoms.split(",")]
+    symptom_list = _parse_string_list(symptoms)
 
     results = _get_graph().retrieve(symptom_list, k=3)
     if not results:
@@ -87,16 +102,13 @@ def check_contraindications(
     Use this before recommending a specific medication.
     Returns contraindication warnings or confirms the drug is safe for the given conditions.
     """
-    try:
-        condition_list: list[str] = json.loads(conditions)
-    except json.JSONDecodeError:
-        condition_list = [c.strip() for c in conditions.split(",")]
+    condition_list = _parse_string_list(conditions)
 
-    warnings = _get_graph().check_contraindications(drug, condition_list)
-    if not warnings:
-        return f"No contraindications found for '{drug}' with the given conditions."
-    return "⚠️ Contraindication warnings:\n" + "\n".join(f"  - {w}" for w in warnings)
+    if not condition_list:
+        return (
+            f"No patient-specific conditions were provided for '{drug}'. "
+            "This tool cannot rule out contraindications; assess bleeding risk, "
+            "renal function, medication interactions, and other clinical factors."
+        )
 
-
-# Exported tool list for the agent
-TOOLS = [retrieve_vector, retrieve_graph, check_contraindications]
+    warnings = _get_graph().

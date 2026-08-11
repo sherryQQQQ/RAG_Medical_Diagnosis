@@ -70,8 +70,19 @@ LIMIT $limit
 CONTRAINDICATION_QUERY = """
 MATCH (d:Disease)-[:CONTRAINDICATED_WITH]->(dr:Drug)
 WHERE toLower(dr.name) CONTAINS $drug
-  AND any(condition IN $conditions WHERE toLower(d.name) CONTAINS condition)
+  AND any(condition IN $conditions
+          WHERE toLower(d.name) CONTAINS condition
+             OR condition CONTAINS toLower(d.name))
 RETURN DISTINCT d.name AS disease, dr.name AS drug
+"""
+
+DRUGS_IN_TEXT_QUERY = """
+MATCH (dr:Drug)
+WHERE size(trim(dr.name)) >= 3
+  AND toLower($text) CONTAINS toLower(dr.name)
+RETURN DISTINCT dr.name AS drug
+ORDER BY size(dr.name) DESC
+LIMIT $limit
 """
 
 
@@ -147,6 +158,14 @@ class GraphRetriever:
             )
             return [f"{r['drug']} contraindicated for {r['disease']}" for r in records]
 
+    def find_drugs_in_text(self, text: str, k: int = 3) -> list[str]:
+        """Find known Drug nodes explicitly mentioned in a query or draft answer."""
+        if not text.strip():
+            return []
+        with self._driver.session() as session:
+            records = session.run(DRUGS_IN_TEXT_QUERY, text=text.lower(), limit=k)
+            return [r["drug"] for r in records]
+
     def _relationship_exists(self, rel_type: str) -> bool:
         if self._relationship_types is None:
             with self._driver.session() as session:
@@ -170,19 +189,4 @@ class GraphRetriever:
                 for r in records
             ]
 
-    def _fallback_search(self, keyword: str, k: int) -> list[GraphResult]:
-        with self._driver.session() as session:
-            records = session.run(DISEASE_SEARCH_QUERY, keyword=keyword, limit=k)
-            return [
-                GraphResult(
-                    disease=r["disease"],
-                    matched_symptoms=r["symptoms"],
-                    treatments=r["treatments"],
-                    drugs=r["drugs"],
-                    contraindications=r["contraindications"],
-                )
-                for r in records
-            ]
-
-    def close(self):
-        self._driver.close()
+    def _

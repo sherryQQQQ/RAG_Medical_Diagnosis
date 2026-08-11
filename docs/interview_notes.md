@@ -44,3 +44,38 @@ retrieval path actually works—the encoder and index dimensions must agree."
 the model could suggest facts, but only a deterministic schema layer could
 decide what was allowed into Neo4j. I also made ingestion content-addressed, so
 retries were idempotent and did not repeat paid model calls."
+
+## Stage 3: Turn the scaffold into a bounded, safety-gated agent
+
+- **Problem 1—semantic safety miss:** The first real run treated
+  `recent cardiac ischemia` as different from the shorter KG entity `ischemia`,
+  so the contraindication lookup returned a false negative. The matching rule
+  was changed to support containment in both directions.
+- **Problem 2—prompt-only orchestration:** Even with an explicit instruction to
+  call Graph then Vector, Gemini skipped both and called the safety tool first.
+  Graph and Vector retrieval were therefore made deterministic mandatory steps;
+  the model retains control over synthesis while safety-critical grounding no
+  longer depends on prompt compliance.
+- **Problem 3—optional safety tool:** The model sometimes recommended a named
+  drug without calling the contraindication tool. A deterministic safety gate
+  now detects known Neo4j Drug entities in the question/draft and forces one
+  contraindication lookup before the final answer.
+- **Problem 4—context truncation:** One long vector result pushed the later
+  safety-tool evidence outside the reflector's context window, causing two
+  unnecessary retries. Per-tool context caps and newest-evidence-first ordering
+  reduced that case from two retries to zero.
+- **Reliability changes:** Added a three-tool hard budget, safe tool-error
+  messages, normalized JSON tool arguments, retained candidate answers and
+  reflector verdicts, and preserved a non-empty answer with an explicit
+  `max_retries_unapproved` status if validation exhausts its budget.
+- **Evidence:** The final online smoke suite passed 5/5 pipelines and 5/5
+  case-specific keyword checks; all five answers were reflector-approved with
+  zero retries and zero tool errors. Observed average end-to-end latency was 5.86s.
+  Medication cases followed Graph -> Vector -> Contraindication, while non-drug
+  cases used Graph -> Vector.
+
+**Interview line:** "I found that tool-use instructions are not control flow.
+For safety-critical steps I used deterministic graph routing and bounded tool
+budgets, while leaving answer synthesis and reflection to the model. A real
+trace also exposed a context-ordering bug that made the reflector ignore valid
+safety evidence."

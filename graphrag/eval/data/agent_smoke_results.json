@@ -1,0 +1,132 @@
+{
+  "evaluation_type": "online_agent_execution_smoke_test",
+  "note": "Pipeline smoke test; not a clinical quality evaluation.",
+  "summary": {
+    "n_cases": 5,
+    "pipeline_passed": 5,
+    "keyword_passed": 5,
+    "approved": 5,
+    "tool_errors": 0,
+    "average_retries": 0.0,
+    "average_latency_s": 5.864861641800962
+  },
+  "cases": [
+    {
+      "case_id": "contraindication",
+      "question": "A patient with hepatorenal syndrome and recent cardiac ischemia is being considered for terlipressin. Is it appropriate?",
+      "answer": "Terlipressin is the vasoactive drug of choice for hepatorenal syndrome (HRS). However, it is contraindicated in patients with ischemia. Given the patient's recent cardiac ischemia, terlipressin is not appropriate.",
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector",
+        "check_contraindications"
+      ],
+      "tool_errors": [],
+      "context_count": 3,
+      "retry_count": 0,
+      "candidate_answers": [
+        "Terlipressin is the vasoactive drug of choice for hepatorenal syndrome (HRS). However, it is contraindicated in patients with ischemia. Given the patient's recent cardiac ischemia, terlipressin is not appropriate."
+      ],
+      "validation_verdicts": [
+        "APPROVED: The answer is well-grounded in the retrieved context, accurately stating terlipressin as the drug of choice for HRS and its contraindication in ischemia. It safely concludes that terlipressin is not appropriate for this patient, directly addressing the query."
+      ],
+      "status": "approved",
+      "latency_s": 7.801728291990003,
+      "keyword_pass": true,
+      "required_tools_pass": true,
+      "pipeline_pass": true
+    },
+    {
+      "case_id": "pancreatitis_nutrition",
+      "question": "For mild acute pancreatitis, when and what should the patient start eating?",
+      "answer": "For mild acute pancreatitis, early feeding with a low-fat solid diet is recommended. This should be initiated within 24 to 48 hours, replacing the older practice of bowel rest.",
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector"
+      ],
+      "tool_errors": [],
+      "context_count": 2,
+      "retry_count": 0,
+      "candidate_answers": [
+        "For mild acute pancreatitis, early feeding with a low-fat solid diet is recommended. This should be initiated within 24 to 48 hours, replacing the older practice of bowel rest."
+      ],
+      "validation_verdicts": [
+        "APPROVED: The answer is directly supported by Passage 1, accurately stating when (within 24-48 hours) and what (low-fat solid diet) patients with mild acute pancreatitis should start eating, and is safe."
+      ],
+      "status": "approved",
+      "latency_s": 3.677210791996913,
+      "keyword_pass": true,
+      "required_tools_pass": true,
+      "pipeline_pass": true
+    },
+    {
+      "case_id": "difficult_airway",
+      "question": "Which first-line laryngoscope blade is preferred for a difficult intubation?",
+      "answer": "For a difficult intubation, hyperangulated laryngoscopy blades for video-assisted laryngoscopy are preferred. This is due to their superior first-attempt success and lower failure rates.",
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector"
+      ],
+      "tool_errors": [],
+      "context_count": 2,
+      "retry_count": 0,
+      "candidate_answers": [
+        "For a difficult intubation, hyperangulated laryngoscopy blades for video-assisted laryngoscopy are preferred. This is due to their superior first-attempt success and lower failure rates."
+      ],
+      "validation_verdicts": [
+        "APPROVED: The answer is directly supported by Passage 1, is safe, and completely addresses the query."
+      ],
+      "status": "approved",
+      "latency_s": 2.448956000007456,
+      "keyword_pass": true,
+      "required_tools_pass": true,
+      "pipeline_pass": true
+    },
+    {
+      "case_id": "ptsd_treatment",
+      "question": "What is the recommended first-line treatment approach for PTSD?",
+      "answer": "The recommended first-line treatment approach for PTSD involves psychotherapies. Screening for PTSD using the PC-PTSD-5 with a cutoff of 3-4 is advocated in primary care. While pharmacotherapy is an option, psychotherapies are recommended as first-line treatments over medication.",
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector"
+      ],
+      "tool_errors": [],
+      "context_count": 2,
+      "retry_count": 0,
+      "candidate_answers": [
+        "The recommended first-line treatment approach for PTSD involves psychotherapies. Screening for PTSD using the PC-PTSD-5 with a cutoff of 3-4 is advocated in primary care. While pharmacotherapy is an option, psychotherapies are recommended as first-line treatments over medication."
+      ],
+      "validation_verdicts": [
+        "APPROVED: The answer is directly supported by Passage 1 of the retrieved context, accurately stating psychotherapies as first-line treatment and mentioning the PC-PTSD-5 screening. It is safe as it does not make unsupported drug recommendations and fully addresses the query."
+      ],
+      "status": "approved",
+      "latency_s": 6.274724167000386,
+      "keyword_pass": true,
+      "required_tools_pass": true,
+      "pipeline_pass": true
+    },
+    {
+      "case_id": "pregnancy_hiv",
+      "question": "Can bictegravir/FTC/TAF be considered for initial HIV therapy during pregnancy?",
+      "answer": "Based on the retrieved information, Bictegravir/FTC/TAF can be considered an alternative option for initial antiretroviral therapy in pregnant patients with HIV, balancing maternal and fetal health (retrieve_vector, Passage 1). It is listed as a treatment for HIV (retrieve_graph).\n\nHowever, a specific contraindication for bictegravir/FTC/TAF during pregnancy was not found in the limited lookup, which does not definitively establish the drug's safety for this patient (check_contraindications).\n\nIt is important to note that this information is based on a limited lookup and further clinical evaluation is needed to determine the most appropriate and safest treatment plan for the individual patient.",
+      "tool_names": [
+        "retrieve_graph",
+        "retrieve_vector",
+        "check_contraindications"
+      ],
+      "tool_errors": [],
+      "context_count": 3,
+      "retry_count": 0,
+      "candidate_answers": [
+        "Based on the retrieved information, Bictegravir/FTC/TAF can be considered an alternative option for initial antiretroviral therapy in pregnant patients with HIV, balancing maternal and fetal health (retrieve_vector, Passage 1). It is listed as a treatment for HIV (retrieve_graph).\n\nHowever, a specific contraindication for bictegravir/FTC/TAF during pregnancy was not found in the limited lookup, which does not definitively establish the drug's safety for this patient (check_contraindications).\n\nIt is important to note that this information is based on a limited lookup and further clinical evaluation is needed to determine the most appropriate and safest treatment plan for the individual patient."
+      ],
+      "validation_verdicts": [
+        "APPROVED: The answer is well-grounded in the retrieved context, accurately states that the drug can be considered as an alternative option based on Passage 1, and includes appropriate safety disclaimers regarding the limited lookup and the need for further clinical evaluation. It directly addresses the query."
+      ],
+      "status": "approved",
+      "latency_s": 9.121688958010054,
+      "keyword_pass": true,
+      "required_tools_pass": true,
+      "pipeline_pass": true
+    }
+  ]
+}

@@ -38,17 +38,18 @@ class GraphRetrieverTests(unittest.TestCase):
         retriever = self.make_retriever(
             [{"disease": "ischemia", "drug": "terlipressin"}]
         )
-        warnings = retriever.check_contraindications("Terlipressin", [" Ischemia "])
+        warnings = retriever.check_contraindications(
+            "Terlipressin", [" Recent Cardiac Ischemia "]
+        )
 
         self.assertEqual(warnings, ["terlipressin contraindicated for ischemia"])
         self.assertIn("(d:Disease)-[:CONTRAINDICATED_WITH]->(dr:Drug)", retriever._driver.fake_session.last_query)
         self.assertIn("RETURN DISTINCT", retriever._driver.fake_session.last_query)
+        self.assertIn(
+            "condition CONTAINS toLower(d.name)",
+            retriever._driver.fake_session.last_query,
+        )
 
     def test_empty_conditions_do_not_query_database(self):
         retriever = self.make_retriever([])
-        self.assertEqual(retriever.check_contraindications("aspirin", []), [])
-        self.assertEqual(retriever._driver.fake_session.last_query, "")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertEqual(
