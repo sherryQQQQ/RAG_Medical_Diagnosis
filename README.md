@@ -579,10 +579,88 @@ Query the local index without Gemini:
   --top-k 3
 ~~~
 
-The next paid pilot can compare `closed-book` with `textbooks-rag` on the same
-frozen ten questions. A subsequent stage should inject this same retriever into
-LangGraph so RAG generation and Agent orchestration can be compared while
-holding the corpus fixed.
+### Stage 5F — Matched-Corpus End-to-End RAG Pilot
+
+Goal: run retrieval, context injection, Gemini generation, and exact-choice
+scoring end to end on the frozen Stage 5D sample while holding the questions and
+generation model fixed. This is an end-to-end RAG result; it is not yet the
+LangGraph Agent comparison because `textbooks-rag` has no planning or reflection
+nodes.
+
+The prior closed-book checkpoint was imported into the new paired report, so
+only the ten `textbooks-rag` calls were sent to Gemini:
+
+~~~bash
+PYTHONUNBUFFERED=1 .venv.nosync/bin/python -m graphrag.main mirage-benchmark \
+  --limit 10 \
+  --seed 13 \
+  --systems closed-book textbooks-rag \
+  --reuse-results-from graphrag/eval/external/mirage/results.json
+~~~
+
+Final parser-v3 result:
+
+| Metric | Closed-book Gemini | Textbooks RAG |
+|---|---:|---:|
+| Exact-choice accuracy | 1.00 | 0.70 |
+| Wilson 95% CI | [0.722, 1.000] | [0.397, 0.892] |
+| Invalid-choice rate | 0.00 | 0.00 |
+| Provider-error rate | 0.00 | 0.00 |
+| Non-empty retrieval | N/A | 1.00 |
+| Average retrieved contexts | N/A | 8.0 |
+| Average retrieval latency | N/A | 0.418 s |
+| p50 end-to-end latency | 2.66 s | 7.78 s |
+| p95 end-to-end latency | 7.12 s | 16.88 s |
+| Average total tokens | 891 | 3,550 |
+| Input / output tokens | 2,293 / 6,615 | 17,247 / 18,257 |
+| Estimated paid-tier cost | US$0.0172 (reused) | US$0.0508 (new) |
+
+The cost estimate uses the recorded
+[Gemini API paid-tier rates](https://ai.google.dev/gemini-api/docs/pricing) for
+`gemini-2.5-flash`: US$0.30/M input tokens and US$2.50/M output tokens including
+thinking, as of 2026-08-11. The report stores both the rates and raw token totals
+so the estimate can be recomputed if pricing changes. The closed-book cost is
+historical and was not charged again during Stage 5F; cross-report reuse saved
+ten model calls.
+
+Paired comparison:
+
+~~~text
+Textbooks-RAG wins  0
+Closed-book wins    3
+Ties                7
+Accuracy delta     -0.30
+McNemar exact p     0.25
+~~~
+
+This ten-case execution pilot is too small for a stable performance claim. The
+three observed RAG failures are nevertheless useful diagnostics:
+
+- A facial-height-ratio question retrieved general face anatomy and body-segment
+  ratios, but not the requested orthodontic ratio.
+- A condylar-fracture question retrieved fracture-management passages but not
+  evidence for the named retromandibular transparotid approach; the generator
+  incorrectly treated missing evidence as evidence for `no`.
+- A Sotrovimab/COVID-19 question had no matching evidence in the older textbook
+  corpus, exposing a temporal corpus-coverage gap.
+
+The first scored run appeared to be 6/10 because parser v2 selected an incidental
+`choice C` mention before a later explicit `\\boxed{A}` final answer. Parser v3
+prioritizes structured JSON and boxed finals over generic mentions and re-scored
+the saved raw answer to 7/10 without another Gemini call. This is why evaluator
+versioning and raw-output retention are part of the evaluation system rather
+than implementation details.
+
+Two correct answers also relied on model knowledge after the retrieved passages
+proved irrelevant. Therefore, answer accuracy and non-empty retrieval alone do
+not establish groundedness. A scaled evaluation should add judged evidence
+Recall@k or context sufficiency at retrieval, and citation/claim faithfulness at
+generation, while keeping exact answer accuracy as the end-to-end outcome.
+
+Stage 5G should inject the same Textbooks BM25 retriever into LangGraph, then
+compare `textbooks-rag` with `textbooks-agent` while holding the corpus, top-k,
+questions, and Gemini model fixed. That isolates whether planning/reflection adds
+quality worth its extra latency and token cost.
 
 ## Metrics by System Stage
 

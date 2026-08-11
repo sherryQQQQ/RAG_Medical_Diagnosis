@@ -92,6 +92,12 @@ class MirageBenchmarkTests(unittest.TestCase):
         self.assertEqual(parse_answer_choice("Reasoning. FINAL_ANSWER: C", choices), "C")
         self.assertEqual(parse_answer_choice("**(A)**", choices), "A")
         self.assertEqual(parse_answer_choice(r"The final answer is $\boxed{D}$", choices), "D")
+        self.assertEqual(
+            parse_answer_choice(
+                r"Option C is discussed, but the final answer is $\boxed{A}$", choices
+            ),
+            "A",
+        )
         self.assertEqual(parse_answer_choice("Aspirin may help.", choices), "")
 
     def test_run_checkpoints_and_resume_reuses_paid_calls(self):
@@ -138,6 +144,58 @@ class MirageBenchmarkTests(unittest.TestCase):
             )
             self.assertEqual(resumed["metrics"]["closed-book"]["accuracy"], 1.0)
 
+    def test_imports_compatible_results_without_repeating_model_calls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "benchmark.json"
+            source.write_text(json.dumps(_fixture()), encoding="utf-8")
+            cases = stratified_sample(
+                load_benchmark(source, enforce_official_counts=False), 5, 2
+            )
+            baseline_output = Path(directory) / "baseline.json"
+            target_output = Path(directory) / "comparison.json"
+
+            def baseline(case):
+                return {"answer": '{"answer_choice":"' + case.answer + '"}'}
+
+            run_benchmark(
+                cases,
+                {"closed-book": baseline},
+                baseline_output,
+                source,
+                generation_model="fake-model",
+                resume=False,
+            )
+            candidate_calls = []
+
+            def must_not_repeat_baseline(case):
+                raise AssertionError("import repeated a paid baseline call")
+
+            def candidate(case):
+                candidate_calls.append(case.case_id)
+                return {"answer": '{"answer_choice":"' + case.answer + '"}'}
+
+            report = run_benchmark(
+                cases,
+                {
+                    "closed-book": must_not_repeat_baseline,
+                    "textbooks-rag": candidate,
+                },
+                target_output,
+                source,
+                generation_model="fake-model",
+                resume=False,
+                reuse_results_from=baseline_output,
+            )
+
+            self.assertEqual(len(candidate_calls), 5)
+            self.assertEqual(report["reused_checkpoint"]["saved_model_calls"], 5)
+            self.assertEqual(
+                report["paired_comparisons"]["textbooks-rag_vs_closed-book"][
+                    "n_pairs"
+                ],
+                5,
+            )
+
     def test_summary_and_paired_mcnemar_counts(self):
         from graphrag.eval.mirage_benchmark import SystemResult
 
@@ -166,6 +224,13 @@ class MirageBenchmarkTests(unittest.TestCase):
         baseline = [result("1", "closed-book", False), result("2", "closed-book", True)]
         agent = [result("1", "current-agent", True), result("2", "current-agent", True)]
         self.assertEqual(summarize_system(agent)["accuracy"], 1.0)
+        priced = summarize_system(
+            agent,
+            {"input": 0.30, "output_including_thinking": 2.50},
+        )
+        self.assertEqual(priced["total_input_tokens"], 2)
+        self.assertEqual(priced["total_output_tokens"], 2)
+        self.assertAlmostEqual(priced["estimated_cost_usd"], 0.0000056)
         comparison = paired_comparison(baseline, agent)
         self.assertEqual(comparison["candidate_wins"], 1)
         self.assertEqual(comparison["baseline_wins"], 0)

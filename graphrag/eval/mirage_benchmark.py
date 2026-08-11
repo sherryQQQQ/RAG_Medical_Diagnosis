@@ -31,7 +31,7 @@ MIRAGE_URL = (
     "https://raw.githubusercontent.com/gzxiong/MIRAGE/main/benchmark.json"
 )
 MIRAGE_SHA256 = "6f7f08c64cd2efe02a5d0c247229813c90db345d9dd6e3a451b5d24146d0f8fa"
-ANSWER_PARSER_VERSION = 2
+ANSWER_PARSER_VERSION = 3
 DATASET_ORDER = ("mmlu", "medqa", "medmcqa", "pubmedqa", "bioasq")
 OFFICIAL_COUNTS = {
     "mmlu": 1089,
@@ -45,6 +45,15 @@ DEFAULT_OUTPUT = Path(__file__).parent / "external" / "mirage" / "results.json"
 DEFAULT_TEXTBOOKS_OUTPUT = (
     Path(__file__).parent / "external" / "mirage" / "textbooks_results.json"
 )
+MODEL_PRICING_USD_PER_MILLION = {
+    "gemini-2.5-flash": {
+        "input": 0.30,
+        "output_including_thinking": 2.50,
+        "as_of": "2026-08-11",
+        "source": "https://ai.google.dev/gemini-api/docs/pricing",
+        "tier": "paid",
+    }
+}
 
 
 @dataclass(frozen=True)
@@ -235,6 +244,13 @@ def parse_answer_choice(text: str, choices: set[str]) -> str:
             if value in normalized_choices:
                 return value
 
+    boxed = re.findall(r"(?i)\\?boxed\s*\{\s*([A-Z])\s*\}", text)
+    valid_boxed = [
+        value.upper() for value in boxed if value.upper() in normalized_choices
+    ]
+    if valid_boxed:
+        return valid_boxed[-1]
+
     explicit = re.findall(
         r"(?i)(?:final[_ ]answer|answer[_ ]choice|answer|choice)"
         r"\s*(?:is\s*)?(?::|=)?\s*[`*\"']*\(?([A-Z])\)?",
@@ -243,11 +259,6 @@ def parse_answer_choice(text: str, choices: set[str]) -> str:
     valid = [value.upper() for value in explicit if value.upper() in normalized_choices]
     if valid:
         return valid[-1]
-
-    boxed = re.findall(r"(?i)\\?boxed\s*\{\s*([A-Z])\s*\}", text)
-    valid_boxed = [value.upper() for value in boxed if value.upper() in normalized_choices]
-    if valid_boxed:
-        return valid_boxed[-1]
 
     compact = re.sub(r"[`*_\s]", "", text).upper()
     match = re.fullmatch(r"\(?([A-Z])\)?[.)]?", compact)
@@ -444,9 +455,14 @@ def _wilson_interval(successes: int, total: int, z: float = 1.96) -> list[float]
     return [max(0.0, centre - margin), min(1.0, centre + margin)]
 
 
-def summarize_system(results: list[SystemResult]) -> dict[str, Any]:
+def summarize_system(
+    results: list[SystemResult],
+    pricing: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     total = len(results)
     correct = sum(result.correct for result in results)
+    total_input_tokens = sum(result.input_tokens for result in results)
+    total_output_tokens = sum(result.output_tokens for result in results)
     per_dataset: dict[str, Any] = {}
     for dataset in DATASET_ORDER:
         subset = [result for result in results if result.dataset == dataset]
@@ -479,6 +495,16 @@ def summarize_system(results: list[SystemResult]) -> dict[str, Any]:
         )
         if results
         else 0.0,
+        "total_input_tokens": total_input_tokens,
+        "total_output_tokens": total_output_tokens,
+        "total_tokens": sum(result.total_tokens for result in results),
+        "estimated_cost_usd": (
+            total_input_tokens * float(pricing["input"])
+            + total_output_tokens * float(pricing["output_including_thinking"])
+        )
+        / 1_000_000
+        if pricing
+        else None,
         "tool_sequence_success_rate": statistics.fmean(
             float(
                 "retrieve_graph" in result.tool_names
@@ -565,6 +591,8 @@ def _report(
     generation_model: str,
     source_path: Path,
     system_metadata: Mapping[str, Any] | None = None,
+    pricing: Mapping[str, Any] | None = None,
+    reuse_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     by_system = {
         system: [result for result in results if result.system == system]
@@ -593,6 +621,7 @@ def _report(
             },
         },
         "generation_model": generation_model,
+        "pricing_usd_per_million_tokens": dict(pricing) if pricing else None,
         "answer_parser_version": ANSWER_PARSER_VERSION,
         "systems": systems,
         "system_metadata": dict(system_metadata or {}),
@@ -603,11 +632,51 @@ def _report(
             "reported separately from published MedRAG configurations."
         ),
         "metrics": {
-            system: summarize_system(by_system[system]) for system in systems
+            system: summarize_system(by_system[system], pricing)
+            for system in systems
         },
         "paired_comparisons": comparisons,
+        "reused_checkpoint": dict(reuse_metadata) if reuse_metadata else None,
         "results": [asdict(result) for result in results],
     }
+
+
+def _load_reusable_results(
+    path: Path,
+    cases: list[MirageCase],
+    systems: list[str],
+    generation_model: str,
+) -> dict[tuple[str, str], SystemResult]:
+    """Import compatible results from another report without repeating API calls."""
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    if saved.get("benchmark", {}).get("selection_fingerprint") != dataset_fingerprint(
+        cases
+    ):
+        raise ValueError("Reusable checkpoint uses a different case selection")
+    if saved.get("generation_model") != generation_model:
+        raise ValueError("Reusable checkpoint uses a different generation model")
+
+    case_by_id = {case.case_id: case for case in cases}
+    parser_changed = saved.get("answer_parser_version") != ANSWER_PARSER_VERSION
+    reusable: dict[tuple[str, str], SystemResult] = {}
+    for item in saved.get("results", []):
+        result = SystemResult(**item)
+        case = case_by_id.get(result.case_id)
+        if case is None or result.system not in systems:
+            continue
+        if (
+            result.dataset != case.dataset
+            or result.source_id != case.source_id
+            or result.gold_choice != case.answer
+        ):
+            raise ValueError(f"Reusable result does not match case {result.case_id}")
+        if parser_changed and not result.error:
+            result.prediction = parse_answer_choice(
+                result.raw_answer, set(case.options)
+            )
+            result.correct = result.prediction == result.gold_choice
+        reusable[(result.case_id, result.system)] = result
+    return reusable
 
 
 def run_benchmark(
@@ -619,10 +688,27 @@ def run_benchmark(
     generation_model: str = "configured-gemini-model",
     resume: bool = True,
     system_metadata: Mapping[str, Any] | None = None,
+    reuse_results_from: Path | None = None,
 ) -> dict[str, Any]:
     systems = list(runners)
+    pricing = MODEL_PRICING_USD_PER_MILLION.get(generation_model)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     previous: dict[tuple[str, str], SystemResult] = {}
+    reuse_metadata = None
+    if reuse_results_from is not None:
+        if not reuse_results_from.exists():
+            raise FileNotFoundError(
+                f"Reusable checkpoint not found: {reuse_results_from}"
+            )
+        imported = _load_reusable_results(
+            reuse_results_from, cases, systems, generation_model
+        )
+        previous.update(imported)
+        reuse_metadata = {
+            "source": str(reuse_results_from),
+            "matched_results": len(imported),
+            "saved_model_calls": len(imported),
+        }
     if resume and output_path.exists():
         saved = json.loads(output_path.read_text(encoding="utf-8"))
         benchmark = saved.get("benchmark", {})
@@ -698,6 +784,8 @@ def run_benchmark(
                 generation_model,
                 source_path,
                 system_metadata,
+                pricing,
+                reuse_metadata,
             )
             output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
             outcome = "ERROR" if error else "correct" if result.correct else "wrong"
@@ -710,6 +798,8 @@ def run_benchmark(
         generation_model,
         source_path,
         system_metadata,
+        pricing,
+        reuse_metadata,
     )
     output_path.write_text(json.dumps(final, indent=2) + "\n", encoding="utf-8")
     return final
@@ -746,6 +836,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--download", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--no-resume", action="store_true")
+    parser.add_argument(
+        "--reuse-results-from",
+        type=Path,
+        help="Import compatible system/case results from a prior report.",
+    )
     from graphrag.eval.mirage_corpus import DEFAULT_INDEX as DEFAULT_TEXTBOOKS_INDEX
 
     parser.add_argument("--textbooks-index", type=Path, default=DEFAULT_TEXTBOOKS_INDEX)
@@ -805,6 +900,7 @@ def main(argv: list[str] | None = None) -> None:
         generation_model=GEMINI_MODEL,
         resume=not args.no_resume,
         system_metadata=system_metadata,
+        reuse_results_from=args.reuse_results_from,
     )
     print("\nMedical MIRAGE")
     print("=" * 48)
