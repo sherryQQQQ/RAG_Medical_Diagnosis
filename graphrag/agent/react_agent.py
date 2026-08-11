@@ -20,7 +20,7 @@ Usage:
 import operator
 import json
 import uuid
-from typing import Annotated, TypedDict
+from typing import Annotated, NotRequired, TypedDict
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -72,6 +72,9 @@ Reply with ONLY one of:
 
 class AgentState(TypedDict):
     query: str
+    # Benchmarks can keep answer options out of retrieval while still showing
+    # them to the generator. Normal interactive calls omit this field.
+    retrieval_query: NotRequired[str]
     messages: Annotated[list, add_messages]
     retrieved_context: list[str]
     retry_count: int
@@ -105,6 +108,10 @@ def _used_tool_names(state: AgentState) -> list[str]:
     ]
 
 
+def _retrieval_query(state: AgentState) -> str:
+    return (state.get("retrieval_query") or state["query"]).strip()
+
+
 def _next_step_instruction(state: AgentState) -> str:
     """Keep the ReAct loop bounded: graph once, vector once, then answer."""
     used_tools = _used_tool_names(state)
@@ -129,13 +136,14 @@ def _next_step_instruction(state: AgentState) -> str:
 def _mandatory_retrieval_call(state: AgentState) -> AIMessage | None:
     """Enforce grounding tools in code instead of relying on prompt compliance."""
     used_tools = _used_tool_names(state)
+    retrieval_query = _retrieval_query(state)
     if "retrieve_graph" not in used_tools:
         return AIMessage(
             content="",
             tool_calls=[
                 {
                     "name": "retrieve_graph",
-                    "args": {"symptoms": json.dumps([state["query"]])},
+                    "args": {"symptoms": json.dumps([retrieval_query])},
                     "id": f"graph-{uuid.uuid4().hex}",
                     "type": "tool_call",
                 }
@@ -147,7 +155,7 @@ def _mandatory_retrieval_call(state: AgentState) -> AIMessage | None:
             tool_calls=[
                 {
                     "name": "retrieve_vector",
-                    "args": {"query": state["query"]},
+                    "args": {"query": retrieval_query},
                     "id": f"vector-{uuid.uuid4().hex}",
                     "type": "tool_call",
                 }
@@ -160,7 +168,7 @@ def _mandatory_safety_call(state: AgentState, draft: AIMessage) -> AIMessage | N
     """Force one contraindication check when a known drug appears in the draft."""
     if draft.tool_calls or "check_contraindications" in _used_tool_names(state):
         return None
-    text = state["query"] + "\n" + _content_to_text(draft.content)
+    text = _retrieval_query(state) + "\n" + _content_to_text(draft.content)
     drugs = find_known_drugs(text)
     if not drugs:
         return None

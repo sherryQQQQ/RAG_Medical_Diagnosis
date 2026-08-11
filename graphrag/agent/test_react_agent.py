@@ -50,6 +50,23 @@ class ReactAgentStateTests(unittest.TestCase):
         call = _mandatory_retrieval_call(state)
         self.assertEqual(call.tool_calls[0]["name"], "retrieve_vector")
 
+    def test_benchmark_retrieval_query_excludes_answer_options(self):
+        from langchain_core.messages import ToolMessage
+
+        state = self.base_state()
+        state["query"] = "Question?\nA. option one\nB. option two"
+        state["retrieval_query"] = "Question?"
+        graph_call = _mandatory_retrieval_call(state)
+        self.assertEqual(
+            graph_call.tool_calls[0]["args"]["symptoms"], '["Question?"]'
+        )
+
+        state["messages"] = [
+            ToolMessage(content="graph", tool_call_id="1", name="retrieve_graph")
+        ]
+        vector_call = _mandatory_retrieval_call(state)
+        self.assertEqual(vector_call.tool_calls[0]["args"]["query"], "Question?")
+
     @patch("graphrag.agent.react_agent.find_known_drugs", return_value=["terlipressin"])
     def test_known_drug_forces_safety_check(self, find_drugs):
         from langchain_core.messages import ToolMessage

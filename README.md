@@ -19,6 +19,7 @@ medical device.
 | 4 | End-to-end evaluation and observability | Complete | Frozen 5-case run, independent judge, local traces |
 | 5A | Robustness dataset design | Complete | Versioned 550-case matrix, schema, offline dry-run |
 | 5B | Candidate-generation pilot | Complete | 5 families / 25 schema-valid candidates, human review still required |
+| 5C | External Medical MIRAGE adapter | Complete | 7,663 validated source cases and a frozen 500-case QOR selection; no model run yet |
 
 ## Architecture
 
@@ -363,6 +364,73 @@ review: this engineering inspection verifies the test transformation contract,
 not independent clinician approval of the underlying medical references. No
 Agent robustness metric is reported yet.
 
+### Stage 5C — External Medical MIRAGE Adapter
+
+Goal: add an independently published medical RAG benchmark so that internal
+robustness results are not mistaken for external generalization evidence.
+
+The adapter targets [Medical MIRAGE](https://github.com/gzxiong/MIRAGE)
+(Medical Information Retrieval-Augmented Generation Evaluation), the 7,663-case
+benchmark described in the
+[ACL 2024 paper](https://aclanthology.org/2024.findings-acl.372/). It validates
+all five source datasets and freezes an evenly stratified 500-case first run.
+
+Offline integration result:
+
+| Item | Result |
+|---|---:|
+| Official source cases validated | 7,663 |
+| Frozen evaluation cases | 500 |
+| MMLU / MedQA / MedMCQA | 100 / 100 / 100 |
+| PubMedQA / BioASQ | 100 / 100 |
+| Selection seed | 13 |
+| Selection fingerprint | `e7074121b1a13d9d` |
+| Source SHA-256 | `6f7f08c64cd2efe0...` |
+| Gemini or Agent calls during preparation | 0 |
+
+Implemented:
+
+- Download the official JSON from a pinned URL and reject a hash mismatch.
+- Keep the external questions and run outputs under a gitignored local cache.
+- Validate dataset counts, questions, options, and gold choices before sampling.
+- Separate `retrieval_query` from `answer_query`: Graph and Vector receive only
+  the question, while the generator receives the question and answer options.
+  This enforces MIRAGE's question-only retrieval setting and prevents option
+  leakage into retrieval.
+- Compare `closed-book` and `current-agent` on identical paired cases.
+- Use exact choice accuracy rather than an LLM judge, with invalid-choice rate,
+  per-dataset and macro accuracy, Wilson 95% intervals, paired win/loss counts,
+  exact McNemar tests, latency, token use, and Agent tool-sequence diagnostics.
+- Checkpoint after every system/case call and reject resume attempts with a
+  different selection, model, or system list.
+
+Download and reproduce the zero-cost frozen selection:
+
+~~~bash
+.venv.nosync/bin/python -m graphrag.main mirage-benchmark \
+  --download \
+  --limit 500 \
+  --seed 13 \
+  --dry-run
+~~~
+
+Run a small paid execution pilot before authorizing the full selection:
+
+~~~bash
+.venv.nosync/bin/python -m graphrag.main mirage-benchmark \
+  --limit 10 \
+  --seed 13 \
+  --systems closed-book current-agent \
+  --no-resume
+~~~
+
+The full 500-case run is intentionally not executed as part of Stage 5C because
+it makes paid Gemini calls. More importantly, `current-agent` still retrieves
+from this project's 15-chunk guideline corpus. Its accuracy is an honest corpus
+coverage diagnostic, but it is not comparable to MIRAGE/MedRAG published RAG
+scores. Integrating the official retrieved snippets or a matched benchmark
+corpus is the next prerequisite for a fair retrieval-system comparison.
+
 ## Metrics by System Stage
 
 Different stages require different metrics. Adding more metrics is useful only
@@ -377,6 +445,7 @@ when each metric diagnoses a distinct failure mode.
 | Medical safety | Safety score, unsafe-answer rate, unsupported claims | Answer may create clinical risk or false reassurance |
 | System performance | Pipeline/judge success, p50/p95 Agent latency | Reliability or user-facing performance is poor |
 | Behavioral robustness | Invariance, directional consistency, abstention F1, recovery rate, worst slice | Behavior changes incorrectly under controlled perturbations |
+| External benchmark | Exact choice accuracy, per-dataset/macro accuracy, invalid-choice rate, McNemar test | The system does not generalize to independent medical QA data |
 | Evaluator reliability | Human/Judge agreement, order/verbosity sensitivity, repeatability | The metric may be unstable even when the Agent output is unchanged |
 
 Retrieval metrics cannot establish final answer quality. Likewise, a high
@@ -449,6 +518,8 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.retrieval.test_graph \
   graphrag.kg.test_builder \
   graphrag.eval.test_e2e_benchmark \
+  graphrag.eval.test_mirage_benchmark \
+  graphrag.eval.test_robustness_generate \
   graphrag.eval.test_synthetic_compare -v
 ~~~
 
@@ -462,8 +533,11 @@ graphrag/
     smoke.py                   online execution smoke suite
   eval/
     e2e_benchmark.py           final-answer evaluation and local traces
+    mirage_benchmark.py        external Medical MIRAGE adapter and evaluator
+    robustness_generate.py     behavioral robustness dataset generator
     synthetic_compare.py       retrieval-only comparison
     data/                      versioned evaluation artifacts
+    external/                  gitignored benchmark cache and paid run outputs
   kg/
     builder.py                 validated idempotent KG ingestion
     validate.py                Neo4j schema and path checks
@@ -480,6 +554,9 @@ scripts/
   human-labeled external retrieval benchmark.
 - The Stage 4 source references come from the project dataset; a final claim
   requires a frozen human-reviewed test set.
+- The Stage 5C MIRAGE adapter supplies external QA labels, but the current
+  15-chunk local corpus is not the MedRAG corpus. Do not compare current-Agent
+  RAG accuracy with the public leaderboard until corpus inputs are aligned.
 - LLM-as-Judge scores may be biased. The evaluator records whether the judge is
   independent from the generation model and retains its rationale.
 - Automated safety scores require manual review of every answer marked unsafe

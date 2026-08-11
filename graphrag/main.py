@@ -12,6 +12,7 @@ Commands:
     e2e-benchmark     Evaluate final Agent answers with traces and an LLM judge
     robustness-generate
                       Design or generate the Stage 5 behavioral robustness dataset
+    mirage-benchmark  Prepare or run the external Medical MIRAGE benchmark
 
 Examples:
     python -m graphrag.main build-kg
@@ -21,6 +22,7 @@ Examples:
     python -m graphrag.main synthetic-benchmark
     python -m graphrag.main e2e-benchmark --limit 10
     python -m graphrag.main robustness-generate --dry-run
+    python -m graphrag.main mirage-benchmark --download --dry-run
 """
 
 import sys
@@ -77,6 +79,10 @@ def main():
     elif command == "robustness-generate":
         from graphrag.eval.robustness_generate import main as run_robustness_generate
         run_robustness_generate(sys.argv[2:])
+
+    elif command == "mirage-benchmark":
+        from graphrag.eval.mirage_benchmark import main as run_mirage_benchmark
+        run_mirage_benchmark(sys.argv[2:])
 
     else:
         print(f"Unknown command: {command}")

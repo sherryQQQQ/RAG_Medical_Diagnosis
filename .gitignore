@@ -18,3 +18,7 @@ CLAUDE.md
 __pycache__/
 *.pyc
 .env
+
+# External benchmark questions and run outputs stay local. Commit adapters,
+# source metadata, and tests instead of redistributing benchmark examples.
+graphrag/eval/external/
