@@ -58,6 +58,12 @@ DEFAULT_GUIDELINES_JUDGMENTS = (
     / "robustness"
     / "stage5i_guidelines_judgments.json"
 )
+DEFAULT_STAGE5J_RESULTS = (
+    Path(__file__).parent / "external" / "robustness" / "stage5j_results.json"
+)
+DEFAULT_STAGE5J_JUDGMENTS = (
+    Path(__file__).parent / "external" / "robustness" / "stage5j_judgments.json"
+)
 
 ROBUSTNESS_GENERATION_INSTRUCTION = """You are a careful medical question-answering
 assistant. Use only the patient question and the retrieved textbook evidence.
@@ -134,6 +140,8 @@ class RobustnessResult:
     validation_verdicts: list[str] = field(default_factory=list)
     reflection_approved: bool = False
     candidate_answers: list[str] = field(default_factory=list)
+    reflection_request_count: int = 0
+    policy_approval_count: int = 0
 
 
 SystemRunner = Callable[[RobustnessCase], Mapping[str, Any]]
@@ -386,7 +394,12 @@ def build_agent_runner(
 ) -> SystemRunner:
     from langchain_core.messages import ToolMessage
     from langchain_core.tools import tool
-    from graphrag.agent.react_agent import AgentState, RetrievalStep, build_agent
+    from graphrag.agent.react_agent import (
+        POLICY_VALIDATE_PROMPT,
+        AgentState,
+        RetrievalStep,
+        build_agent,
+    )
     retriever = build_retriever(corpus, index_path)
 
     def run(case: RobustnessCase) -> Mapping[str, Any]:
@@ -416,6 +429,8 @@ def build_agent_runner(
             allow_optional_tool_calls=False,
             max_tool_calls=1,
             model=model,
+            validation_prompt_template=POLICY_VALIDATE_PROMPT,
+            enable_policy_precheck=True,
         )
         trace_id = uuid.uuid4()
         state = graph.invoke(
@@ -429,9 +444,20 @@ def build_agent_runner(
                 candidate_answers=[],
                 validation_verdicts=[],
                 status="running",
+                task_mode="open_medical",
+                task_policy=(
+                    "This is open clinical QA, not forced choice. If the patient "
+                    "question omits a decisive patient-specific fact, explicitly "
+                    "abstain and request it. If retrieval fails, disclose the failure "
+                    "and do not invent an answer. If evidence conflicts, explicitly "
+                    "disclose the conflict."
+                ),
                 input_tokens=0,
                 output_tokens=0,
                 total_tokens=0,
+                provider_request_count=0,
+                reflection_request_count=0,
+                policy_approval_count=0,
                 retrieved_ids=[],
                 retrieval_latency_s=0.0,
                 context_count=0,
@@ -440,7 +466,7 @@ def build_agent_runner(
                 "recursion_limit": 20,
                 "run_id": trace_id,
                 "run_name": "medical-robustness-textbooks-agent-case",
-                "tags": ["stage-5i", "robustness", case.test_type],
+                "tags": ["stage-5j", "robustness", case.test_type],
                 "metadata": {
                     "evaluation_type": "internal_behavioral_robustness",
                     "case_id": case.case_id,
@@ -471,7 +497,11 @@ def build_agent_runner(
             "input_tokens": int(state.get("input_tokens", 0)),
             "output_tokens": int(state.get("output_tokens", 0)),
             "total_tokens": int(state.get("total_tokens", 0)),
-            "provider_request_count": 2 * len(verdicts),
+            "provider_request_count": int(state.get("provider_request_count", 0)),
+            "reflection_request_count": int(
+                state.get("reflection_request_count", 0)
+            ),
+            "policy_approval_count": int(state.get("policy_approval_count", 0)),
         }
 
     return run
@@ -506,6 +536,14 @@ def _summarize_generation(
             "total_output_tokens": output_tokens,
             "total_tokens": sum(result.total_tokens for result in subset),
             "total_provider_requests": sum(result.provider_request_count for result in subset),
+            "total_reflection_requests": sum(
+                result.reflection_request_count for result in subset
+            ),
+            "policy_approval_rate": (
+                sum(result.policy_approval_count > 0 for result in subset) / len(subset)
+                if has_reflection
+                else None
+            ),
             "estimated_cost_usd": _cost(input_tokens, output_tokens, pricing),
             "retrieval_success_rate": (
                 sum(result.context_count > 0 for result in subset) / len(subset)
@@ -550,6 +588,7 @@ def _generation_report(
     top_k: int,
     index_path: Path,
     corpus: str,
+    reuse_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     pricing = MODEL_PRICING_USD_PER_MILLION.get(model)
     return {
@@ -563,7 +602,9 @@ def _generation_report(
         "retrieval_index": str(index_path),
         "retrieval_top_k": top_k,
         "question_only_retrieval": True,
+        "agent_validation_policy": "task-aware-v2",
         "pricing_usd_per_million_tokens": dict(pricing) if pricing else None,
+        "reused_checkpoint": dict(reuse_metadata) if reuse_metadata else None,
         "metrics": _summarize_generation(results, pricing),
         "results": [asdict(result) for result in results],
     }
@@ -579,6 +620,8 @@ def run_generation(
     resume: bool = True,
     max_estimated_cost_usd: float | None = None,
     corpus: str = "project-guidelines",
+    reuse_results_from: Path | None = None,
+    reuse_systems: set[str] | None = None,
 ) -> dict[str, Any]:
     dataset, cases = load_pilot_cases(dataset_path)
     effective_runners = dict(runners or {
@@ -589,6 +632,50 @@ def run_generation(
         raise ValueError("Stage 5I requires both matched-corpus systems")
 
     previous: dict[tuple[str, str], RobustnessResult] = {}
+    reuse_metadata = None
+    if reuse_results_from is not None:
+        if not reuse_results_from.exists():
+            raise FileNotFoundError(
+                f"Reusable checkpoint not found: {reuse_results_from}"
+            )
+        saved = json.loads(reuse_results_from.read_text(encoding="utf-8"))
+        expected = {
+            "dataset_fingerprint": dataset["metadata"]["dataset_fingerprint"],
+            "generation_model": model,
+            "generation_instruction_fingerprint": fingerprint(
+                ROBUSTNESS_GENERATION_INSTRUCTION
+            ),
+            "retrieval_top_k": top_k,
+            "retrieval_corpus": corpus,
+        }
+        for key, value in expected.items():
+            saved_value = saved.get(key)
+            if key == "retrieval_top_k" and saved_value is None:
+                saved_value = saved.get("textbooks_top_k")
+            if key == "retrieval_corpus" and saved_value is None:
+                saved_value = "textbooks"
+            if saved_value != value:
+                raise ValueError(f"Reusable generation checkpoint mismatch for {key}")
+        selected_systems = reuse_systems if reuse_systems is not None else set(SYSTEMS)
+        imported = 0
+        saved_requests = 0
+        for item in saved.get("results", []):
+            if item.get("error"):
+                continue
+            migrated = dict(item)
+            migrated["system"] = LEGACY_SYSTEMS.get(item["system"], item["system"])
+            if migrated["system"] not in selected_systems:
+                continue
+            result = RobustnessResult(**migrated)
+            previous[(result.case_id, result.system)] = result
+            imported += 1
+            saved_requests += result.provider_request_count
+        reuse_metadata = {
+            "source": str(reuse_results_from),
+            "matched_results": imported,
+            "saved_case_runs": imported,
+            "saved_provider_requests": saved_requests,
+        }
     if resume and output_path.exists():
         saved = json.loads(output_path.read_text(encoding="utf-8"))
         expected = {
@@ -597,6 +684,7 @@ def run_generation(
             "generation_instruction_fingerprint": fingerprint(ROBUSTNESS_GENERATION_INSTRUCTION),
             "retrieval_top_k": top_k,
             "retrieval_corpus": corpus,
+            "agent_validation_policy": "task-aware-v2",
         }
         for key, value in expected.items():
             saved_value = saved.get(key)
@@ -656,9 +744,21 @@ def run_generation(
                 validation_verdicts=list(payload.get("validation_verdicts", [])),
                 reflection_approved=bool(payload.get("reflection_approved", False)),
                 candidate_answers=list(payload.get("candidate_answers", [])),
+                reflection_request_count=int(
+                    payload.get("reflection_request_count", 0)
+                ),
+                policy_approval_count=int(payload.get("policy_approval_count", 0)),
             )
             results.append(result)
-            report = _generation_report(dataset, results, model, top_k, index_path, corpus)
+            report = _generation_report(
+                dataset,
+                results,
+                model,
+                top_k,
+                index_path,
+                corpus,
+                reuse_metadata,
+            )
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
             spent = sum(
@@ -672,7 +772,9 @@ def run_generation(
                     f"${max_estimated_cost_usd:.4f}"
                 )
 
-    final = _generation_report(dataset, results, model, top_k, index_path, corpus)
+    final = _generation_report(
+        dataset, results, model, top_k, index_path, corpus, reuse_metadata
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(final, indent=2) + "\n", encoding="utf-8")
     return final
@@ -1493,14 +1595,25 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--judge-only", action="store_true")
     parser.add_argument("--no-resume", action="store_true")
+    parser.add_argument(
+        "--reuse-results-from",
+        type=Path,
+        help="Import compatible completed system/case results from a prior report.",
+    )
+    parser.add_argument(
+        "--reuse-systems",
+        nargs="+",
+        choices=SYSTEMS,
+        help="Only import these systems from --reuse-results-from.",
+    )
     parser.add_argument("--generation-cost-guard", type=float, default=0.90)
     parser.add_argument("--judge-cost-guard", type=float, default=0.35)
     args = parser.parse_args(argv)
 
     if args.corpus == "project-guidelines":
         index_path = args.index or Path(FAISS_INDEX_PATH + ".faiss")
-        output_path = args.output or DEFAULT_GUIDELINES_RESULTS
-        judgment_path = args.judgments or DEFAULT_GUIDELINES_JUDGMENTS
+        output_path = args.output or DEFAULT_STAGE5J_RESULTS
+        judgment_path = args.judgments or DEFAULT_STAGE5J_JUDGMENTS
     else:
         index_path = args.index or DEFAULT_INDEX
         output_path = args.output or DEFAULT_RESULTS
@@ -1520,6 +1633,8 @@ def main(argv: list[str] | None = None) -> None:
             resume=not args.no_resume,
             max_estimated_cost_usd=args.generation_cost_guard,
             corpus=args.corpus,
+            reuse_results_from=args.reuse_results_from,
+            reuse_systems=set(args.reuse_systems) if args.reuse_systems else None,
         )
     report = run_judging(
         output_path,

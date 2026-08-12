@@ -48,6 +48,9 @@ DEFAULT_TEXTBOOKS_OUTPUT = (
 DEFAULT_TEXTBOOKS_AGENT_OUTPUT = (
     Path(__file__).parent / "external" / "mirage" / "textbooks_agent_results.json"
 )
+DEFAULT_TEXTBOOKS_AGENT_V2_OUTPUT = (
+    Path(__file__).parent / "external" / "mirage" / "textbooks_agent_v2_results.json"
+)
 MODEL_PRICING_USD_PER_MILLION = {
     "gemini-2.5-flash": {
         "input": 0.30,
@@ -103,6 +106,8 @@ class SystemResult:
     initial_prediction: str = ""
     initial_correct: bool | None = None
     provider_request_count: int = 0
+    reflection_request_count: int = 0
+    policy_approval_count: int = 0
 
 
 SystemRunner = Callable[[MirageCase], Mapping[str, Any]]
@@ -470,7 +475,12 @@ def build_textbooks_agent_runner(
 ) -> SystemRunner:
     """Build a LangGraph Agent over the same Textbooks BM25 configuration."""
     from langchain_core.messages import ToolMessage
-    from graphrag.agent.react_agent import AgentState, RetrievalStep, build_agent
+    from graphrag.agent.react_agent import (
+        POLICY_VALIDATE_PROMPT,
+        AgentState,
+        RetrievalStep,
+        build_agent,
+    )
     from graphrag.config import GEMINI_MODEL
     from graphrag.eval.mirage_corpus import TextbooksBM25Retriever
 
@@ -489,6 +499,8 @@ def build_textbooks_agent_runner(
         allow_optional_tool_calls=False,
         max_tool_calls=1,
         model=model or GEMINI_MODEL,
+        validation_prompt_template=POLICY_VALIDATE_PROMPT,
+        enable_policy_precheck=True,
     )
 
     def run(case: MirageCase) -> Mapping[str, Any]:
@@ -504,9 +516,19 @@ def build_textbooks_agent_runner(
                 candidate_answers=[],
                 validation_verdicts=[],
                 status="running",
+                task_mode="multiple_choice",
+                task_policy=(
+                    "This is a forced-choice benchmark. Return one explicit valid "
+                    "choice from the supplied options. Retrieval uncertainty is not "
+                    "a reason to abstain or erase a valid final choice."
+                ),
+                allowed_choices=list(case.options),
                 input_tokens=0,
                 output_tokens=0,
                 total_tokens=0,
+                provider_request_count=0,
+                reflection_request_count=0,
+                policy_approval_count=0,
                 retrieved_ids=[],
                 retrieval_latency_s=0.0,
                 context_count=0,
@@ -515,7 +537,7 @@ def build_textbooks_agent_runner(
                 "recursion_limit": 20,
                 "run_id": trace_id,
                 "run_name": "medical-mirage-textbooks-agent-case",
-                "tags": ["stage-5g", "mirage", "textbooks-agent", case.dataset],
+                "tags": ["stage-5j", "mirage", "textbooks-agent", case.dataset],
                 "metadata": {
                     "evaluation_type": "external_medical_mirage",
                     "case_id": case.case_id,
@@ -554,7 +576,11 @@ def build_textbooks_agent_runner(
             "input_tokens": int(state.get("input_tokens", 0)),
             "output_tokens": int(state.get("output_tokens", 0)),
             "total_tokens": int(state.get("total_tokens", 0)),
-            "provider_request_count": 2 * len(verdicts),
+            "provider_request_count": int(state.get("provider_request_count", 0)),
+            "reflection_request_count": int(
+                state.get("reflection_request_count", 0)
+            ),
+            "policy_approval_count": int(state.get("policy_approval_count", 0)),
             "trace_id": str(trace_id),
         }
 
@@ -677,6 +703,14 @@ def summarize_system(
         )
         if results
         else 0.0,
+        "total_reflection_requests": sum(
+            result.reflection_request_count for result in results
+        ),
+        "policy_approval_rate": statistics.fmean(
+            float(result.policy_approval_count > 0) for result in results
+        )
+        if has_reflection
+        else None,
         "estimated_cost_usd": (
             total_input_tokens * float(pricing["input"])
             + total_output_tokens * float(pricing["output_including_thinking"])
@@ -949,6 +983,11 @@ def run_benchmark(
     resume: bool = True,
     system_metadata: Mapping[str, Any] | None = None,
     reuse_results_from: Path | None = None,
+    reuse_systems: set[str] | None = None,
+    additional_reuse_results_from: Path | None = None,
+    additional_reuse_systems: set[str] | None = None,
+    rerun_agent_case_ids: set[str] | None = None,
+    max_incremental_cost_usd: float | None = None,
 ) -> dict[str, Any]:
     systems = list(runners)
     pricing = MODEL_PRICING_USD_PER_MILLION.get(generation_model)
@@ -960,10 +999,15 @@ def run_benchmark(
             raise FileNotFoundError(
                 f"Reusable checkpoint not found: {reuse_results_from}"
             )
+        selected_reuse_systems = (
+            [system for system in systems if system in reuse_systems]
+            if reuse_systems is not None
+            else systems
+        )
         imported = _load_reusable_results(
             reuse_results_from,
             cases,
-            systems,
+            selected_reuse_systems,
             generation_model,
             source_path,
             system_metadata,
@@ -980,6 +1024,47 @@ def run_benchmark(
                 result.provider_request_count for result in imported.values()
             ),
         }
+    if additional_reuse_results_from is not None:
+        if not additional_reuse_results_from.exists():
+            raise FileNotFoundError(
+                "Additional reusable checkpoint not found: "
+                f"{additional_reuse_results_from}"
+            )
+        selected_additional_systems = (
+            [system for system in systems if system in additional_reuse_systems]
+            if additional_reuse_systems is not None
+            else systems
+        )
+        additional_imported = _load_reusable_results(
+            additional_reuse_results_from,
+            cases,
+            selected_additional_systems,
+            generation_model,
+            source_path,
+            system_metadata,
+        )
+        previous.update(additional_imported)
+        additional_metadata = {
+            "source": str(additional_reuse_results_from),
+            "matched_results": len(additional_imported),
+            "saved_case_runs": len(additional_imported),
+            "saved_model_calls": len(additional_imported),
+            "saved_provider_requests": sum(
+                result.provider_request_count
+                for result in additional_imported.values()
+            ),
+        }
+        if reuse_metadata is None:
+            reuse_metadata = additional_metadata
+        else:
+            reuse_metadata["additional_sources"] = [additional_metadata]
+            for key in (
+                "matched_results",
+                "saved_case_runs",
+                "saved_model_calls",
+                "saved_provider_requests",
+            ):
+                reuse_metadata[key] += additional_metadata[key]
     if resume and output_path.exists():
         saved = json.loads(output_path.read_text(encoding="utf-8"))
         benchmark = saved.get("benchmark", {})
@@ -996,17 +1081,34 @@ def run_benchmark(
         for item in saved.get("results", []):
             result = SystemResult(**item)
             # Preserve completed paid calls, but allow transient provider errors
-            # to be retried on resume instead of becoming permanent outcomes.
+            # to be retried on normal resume instead of becoming permanent
+            # outcomes. A targeted rerun preserves unrelated errors so the
+            # command does exactly the explicitly named work.
             if result.error:
+                target_key = (result.case_id, result.system)
+                targeted = (
+                    rerun_agent_case_ids is not None
+                    and target_key
+                    == (result.case_id, "textbooks-agent")
+                    and result.case_id in rerun_agent_case_ids
+                )
+                if not rerun_agent_case_ids or targeted:
+                    continue
+                previous[target_key] = result
                 continue
             if parser_changed and result.case_id in case_by_id and not result.error:
                 case = case_by_id[result.case_id]
                 _rescore_result(result, case)
             previous[(result.case_id, result.system)] = result
 
+    for case_id in rerun_agent_case_ids or set():
+        previous.pop((case_id, "textbooks-agent"), None)
+
     results: list[SystemResult] = []
     total_calls = len(cases) * len(systems)
     position = 0
+    incremental_input_tokens = 0
+    incremental_output_tokens = 0
     for case in cases:
         for system, runner in runners.items():
             position += 1
@@ -1058,8 +1160,14 @@ def run_benchmark(
                 provider_request_count=int(
                     output.get("provider_request_count", 0 if error else 1)
                 ),
+                reflection_request_count=int(
+                    output.get("reflection_request_count", 0)
+                ),
+                policy_approval_count=int(output.get("policy_approval_count", 0)),
             )
             results.append(result)
+            incremental_input_tokens += result.input_tokens
+            incremental_output_tokens += result.output_tokens
             report = _report(
                 cases,
                 results,
@@ -1072,6 +1180,18 @@ def run_benchmark(
                 reuse_metadata,
             )
             output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+            if pricing and max_incremental_cost_usd is not None:
+                incremental_cost = (
+                    incremental_input_tokens * float(pricing["input"])
+                    + incremental_output_tokens
+                    * float(pricing["output_including_thinking"])
+                ) / 1_000_000
+                if incremental_cost > max_incremental_cost_usd:
+                    raise RuntimeError(
+                        "Incremental generation cost guard exceeded: "
+                        f"${incremental_cost:.4f} > "
+                        f"${max_incremental_cost_usd:.4f}"
+                    )
             outcome = "ERROR" if error else "correct" if result.correct else "wrong"
             print(f"[{position}/{total_calls}] {case.case_id} {system}: {outcome}")
     final = _report(
@@ -1121,9 +1241,40 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--no-resume", action="store_true")
     parser.add_argument(
+        "--generation-cost-guard",
+        type=float,
+        default=3.0,
+        help="Stop if newly generated token cost exceeds this USD amount.",
+    )
+    parser.add_argument(
         "--reuse-results-from",
         type=Path,
         help="Import compatible system/case results from a prior report.",
+    )
+    parser.add_argument(
+        "--reuse-systems",
+        nargs="+",
+        choices=("closed-book", "current-agent", "textbooks-rag", "textbooks-agent"),
+        help=(
+            "Only import these systems from --reuse-results-from; useful when "
+            "rerunning one changed system."
+        ),
+    )
+    parser.add_argument(
+        "--additional-reuse-results-from",
+        type=Path,
+        help="Merge a second compatible checkpoint without repeating its calls.",
+    )
+    parser.add_argument(
+        "--additional-reuse-systems",
+        nargs="+",
+        choices=("closed-book", "current-agent", "textbooks-rag", "textbooks-agent"),
+        help="Only import these systems from the additional checkpoint.",
+    )
+    parser.add_argument(
+        "--rerun-agent-case-id",
+        action="append",
+        help="Force a targeted Textbooks Agent case rerun; may be repeated.",
     )
     from graphrag.eval.mirage_corpus import DEFAULT_INDEX as DEFAULT_TEXTBOOKS_INDEX
 
@@ -1189,9 +1340,11 @@ def main(argv: list[str] | None = None) -> None:
                 "index": index_metadata(args.textbooks_index),
                 "orchestrator": "LangGraph reason/act/validate",
                 "max_reflection_retries": 3,
+                "validation_policy": "task-aware-v2",
+                "valid_choice_preservation": True,
             }
     if "textbooks-agent" in args.systems and args.output == DEFAULT_OUTPUT:
-        args.output = DEFAULT_TEXTBOOKS_AGENT_OUTPUT
+        args.output = DEFAULT_TEXTBOOKS_AGENT_V2_OUTPUT
     elif "textbooks-rag" in args.systems and args.output == DEFAULT_OUTPUT:
         args.output = DEFAULT_TEXTBOOKS_OUTPUT
     report = run_benchmark(
@@ -1204,6 +1357,17 @@ def main(argv: list[str] | None = None) -> None:
         resume=not args.no_resume,
         system_metadata=system_metadata,
         reuse_results_from=args.reuse_results_from,
+        reuse_systems=set(args.reuse_systems) if args.reuse_systems else None,
+        additional_reuse_results_from=args.additional_reuse_results_from,
+        additional_reuse_systems=(
+            set(args.additional_reuse_systems)
+            if args.additional_reuse_systems
+            else None
+        ),
+        rerun_agent_case_ids=(
+            set(args.rerun_agent_case_id) if args.rerun_agent_case_id else None
+        ),
+        max_incremental_cost_usd=args.generation_cost_guard,
     )
     print("\nMedical MIRAGE")
     print("=" * 48)

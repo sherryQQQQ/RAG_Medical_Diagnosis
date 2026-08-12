@@ -19,6 +19,7 @@ Usage:
 
 import operator
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from typing import Annotated, Any, Callable, NotRequired, TypedDict
@@ -73,6 +74,29 @@ Reply with ONLY one of:
 - "RETRY: <specific issue to fix>"
 """
 
+POLICY_VALIDATE_PROMPT = """Review this medical answer against both the task contract and the evidence.
+
+QUERY: {query}
+ANSWER: {answer}
+RETRIEVED CONTEXT: {context}
+TASK CONTRACT: {task_policy}
+
+Apply these rules in order:
+1. Enforce the task contract. Do not treat weak retrieval as permission to change the task.
+2. Distinguish missing retrieval evidence from decisive information missing in the user's query.
+3. If the query itself lacks decisive patient-specific information, require an explicit abstention
+   or request for that information. Do not fill it in from a generic guideline.
+4. If a tool failed and the answer explicitly discloses the failure and safely declines an
+   unsupported conclusion, that answer is complete and should be approved.
+5. If retrieved sources conflict, require the answer to disclose the conflict rather than silently
+   selecting one source.
+6. Otherwise require the answer to be grounded, safe, and responsive.
+
+Reply with ONLY one of:
+- "APPROVED: <brief reason>"
+- "RETRY: <specific issue to fix>"
+"""
+
 
 @dataclass(frozen=True)
 class RetrievalStep:
@@ -117,9 +141,17 @@ class AgentState(TypedDict):
     candidate_answers: Annotated[list[str], operator.add]
     validation_verdicts: Annotated[list[str], operator.add]
     status: str
+    # Per-example task contracts let the same graph distinguish forced-choice
+    # benchmarks from open clinical questions without leaking answer keys.
+    task_mode: NotRequired[str]
+    task_policy: NotRequired[str]
+    allowed_choices: NotRequired[list[str]]
     input_tokens: NotRequired[int]
     output_tokens: NotRequired[int]
     total_tokens: NotRequired[int]
+    provider_request_count: NotRequired[int]
+    reflection_request_count: NotRequired[int]
+    policy_approval_count: NotRequired[int]
     retrieved_ids: NotRequired[list[str]]
     retrieval_latency_s: NotRequired[float]
     context_count: NotRequired[int]
@@ -155,6 +187,89 @@ def _usage_update(state: AgentState, message: Any) -> dict[str, int]:
     return {
         key: int(state.get(key, 0)) + value for key, value in usage.items()
     }
+
+
+def _explicit_answer_choice(candidate: str, allowed_choices: list[str]) -> str | None:
+    """Return an explicit final choice, avoiding letters found only in reasoning."""
+    allowed = {str(choice).strip().upper() for choice in allowed_choices}
+    if not allowed:
+        return None
+    for match in re.finditer(r"\{[^{}]*\}", candidate, flags=re.DOTALL):
+        try:
+            payload = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            continue
+        for key in ("answer_choice", "prediction", "answer"):
+            value = str(payload.get(key, "")).strip().upper()
+            if value in allowed:
+                return value
+    patterns = (
+        r"\\boxed\s*\{\s*([A-Z])\s*\}",
+        r"(?:final[_\s-]*answer|answer[_\s-]*choice|answer|choice)"
+        r"\s*[`*_\"']*\s*(?:is\s*)?(?::|=)?\s*[`*\"']*\(?([A-Z])\)?",
+        r"(?:final\s+choice|chosen\s+answer)\s*[`*\"']*\s*[:=]\s*[`*\"'\[]*([A-Z])\b",
+    )
+    matches: list[str] = []
+    for pattern in patterns:
+        matches.extend(re.findall(pattern, candidate, flags=re.IGNORECASE))
+    normalized = [match.upper() for match in matches if match.upper() in allowed]
+    if normalized:
+        return normalized[-1]
+    compact = re.sub(r"[`*_\s]", "", candidate).upper()
+    compact_match = re.fullmatch(r"\(?([A-Z])\)?[.)]?", compact)
+    if compact_match and compact_match.group(1) in allowed:
+        return compact_match.group(1)
+    return None
+
+
+def _is_safe_tool_failure_answer(candidate: str) -> bool:
+    text = candidate.lower()
+    disclosure_markers = ("tool", "retrieval", "source", "evidence", "unavailable", "failed")
+    abstention_markers = (
+        "cannot determine",
+        "can't determine",
+        "cannot answer",
+        "can't answer",
+        "cannot safely answer",
+        "can't safely answer",
+        "cannot be answered",
+        "can't be answered",
+        "insufficient",
+        "not enough information",
+        "unable to verify",
+        "unable to confirm",
+        "seek clinician",
+    )
+    return any(marker in text for marker in disclosure_markers) and any(
+        marker in text for marker in abstention_markers
+    )
+
+
+def _task_policy_precheck(state: AgentState, candidate: str) -> str | None:
+    """Approve contracts that can be checked deterministically before an LLM critique."""
+    task_mode = state.get("task_mode", "default")
+    if task_mode == "multiple_choice":
+        choice = _explicit_answer_choice(candidate, state.get("allowed_choices", []))
+        if choice:
+            return (
+                "APPROVED: deterministic task contract preserved explicit valid "
+                f"choice {choice}"
+            )
+        return (
+            "RETRY: deterministic task contract requires exactly one explicit "
+            "valid choice from the supplied options; abstention is not allowed"
+        )
+    if task_mode == "open_medical":
+        tool_failed = any(
+            "tool unavailable" in context.lower()
+            for context in state.get("retrieved_context", [])
+        )
+        if tool_failed and _is_safe_tool_failure_answer(candidate):
+            return (
+                "APPROVED: deterministic task contract accepted explicit safe "
+                "tool-failure disclosure"
+            )
+    return None
 
 
 def _used_tool_names(state: AgentState) -> list[str]:
@@ -279,6 +394,9 @@ def reason_node(
     messages.extend(state["messages"])
     response: AIMessage = llm.invoke(messages)
     usage_update = _usage_update(state, response)
+    request_update = {
+        "provider_request_count": int(state.get("provider_request_count", 0)) + 1
+    }
     safety_call = (
         _mandatory_safety_call(state, response) if enable_safety else None
     )
@@ -287,6 +405,7 @@ def reason_node(
             "messages": [safety_call],
             "status": "safety_checking",
             **usage_update,
+            **request_update,
         }
     used_count = len(_used_tool_names(state))
     if response.tool_calls and used_count + len(response.tool_calls) > max_tool_calls:
@@ -301,8 +420,9 @@ def reason_node(
             ],
             "status": "tool_limit_reached",
             **usage_update,
+            **request_update,
         }
-    return {"messages": [response], **usage_update}
+    return {"messages": [response], **usage_update, **request_update}
 
 
 def act_node(state: AgentState, tools: list[Any] | None = None) -> dict:
@@ -339,7 +459,13 @@ def act_node(state: AgentState, tools: list[Any] | None = None) -> dict:
     }
 
 
-def validate_node(state: AgentState, model: str = GEMINI_MODEL) -> dict:
+def validate_node(
+    state: AgentState,
+    model: str = GEMINI_MODEL,
+    *,
+    validation_prompt_template: str = VALIDATE_PROMPT,
+    enable_policy_precheck: bool = False,
+) -> dict:
     """Self-critique: check if final answer is grounded in retrieved context."""
     # Extract last AI text response as candidate answer
     last_ai = next(
@@ -360,6 +486,40 @@ def validate_node(state: AgentState, model: str = GEMINI_MODEL) -> dict:
         context[:8000] for context in reversed(state["retrieved_context"][-6:])
     )
 
+    if enable_policy_precheck:
+        policy_verdict = _task_policy_precheck(state, candidate)
+        if policy_verdict:
+            policy_update = {
+                "candidate_answers": [candidate],
+                "validation_verdicts": [policy_verdict],
+            }
+            if policy_verdict.startswith("APPROVED"):
+                return {
+                    **policy_update,
+                    "final_answer": candidate,
+                    "retry_count": state["retry_count"],
+                    "status": "policy_approved",
+                    "policy_approval_count": int(
+                        state.get("policy_approval_count", 0)
+                    )
+                    + 1,
+                }
+            next_retry = state["retry_count"] + 1
+            if next_retry >= MAX_RETRIES:
+                return {
+                    **policy_update,
+                    "final_answer": candidate,
+                    "retry_count": next_retry,
+                    "status": "max_retries_unapproved",
+                }
+            critique = policy_verdict.replace("RETRY:", "").strip()
+            return {
+                **policy_update,
+                "messages": [HumanMessage(content=f"Please revise: {critique}")],
+                "retry_count": next_retry,
+                "status": "retrying",
+            }
+
     llm = ChatGoogleGenerativeAI(
         model=model,
         google_api_key=GOOGLE_API_KEY,
@@ -367,10 +527,14 @@ def validate_node(state: AgentState, model: str = GEMINI_MODEL) -> dict:
         request_timeout=GEMINI_REQUEST_TIMEOUT_S,
         retries=GEMINI_MAX_RETRIES,
     )
-    validation_prompt = VALIDATE_PROMPT.format(
+    validation_prompt = validation_prompt_template.format(
         query=state["query"],
         answer=candidate,
         context=context_summary[:8000],
+        task_policy=state.get(
+            "task_policy",
+            "Give a grounded, safe, complete answer to the user's query.",
+        ),
     )
     validation_response = llm.invoke([HumanMessage(content=validation_prompt)])
     verdict = _content_to_text(validation_response.content).strip()
@@ -379,6 +543,8 @@ def validate_node(state: AgentState, model: str = GEMINI_MODEL) -> dict:
     validation_update = {
         "candidate_answers": [candidate],
         "validation_verdicts": [verdict],
+        "provider_request_count": int(state.get("provider_request_count", 0)) + 1,
+        "reflection_request_count": int(state.get("reflection_request_count", 0)) + 1,
         **usage_update,
     }
     if verdict.startswith("APPROVED"):
@@ -437,6 +603,8 @@ def build_agent(
     allow_optional_tool_calls: bool = True,
     max_tool_calls: int = MAX_TOOL_CALLS,
     model: str = GEMINI_MODEL,
+    validation_prompt_template: str = VALIDATE_PROMPT,
+    enable_policy_precheck: bool = False,
 ):
     effective_tools = TOOLS if tools is None else tools
     graph = StateGraph(AgentState)
@@ -455,7 +623,15 @@ def build_agent(
         ),
     )
     graph.add_node("act", lambda state: act_node(state, effective_tools))
-    graph.add_node("validate", lambda state: validate_node(state, model))
+    graph.add_node(
+        "validate",
+        lambda state: validate_node(
+            state,
+            model,
+            validation_prompt_template=validation_prompt_template,
+            enable_policy_precheck=enable_policy_precheck,
+        ),
+    )
 
     graph.add_edge(START, "reason")
     graph.add_conditional_edges("reason", route_after_reason, {"act": "act", "validate": "validate"})

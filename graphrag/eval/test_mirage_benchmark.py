@@ -355,6 +355,115 @@ class MirageBenchmarkTests(unittest.TestCase):
             self.assertEqual(report["reused_checkpoint"]["matched_results"], 5)
             self.assertEqual(report["metrics"]["closed-book"]["n"], 10)
 
+    def test_reuse_system_filter_reruns_only_changed_agent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "benchmark.json"
+            source.write_text(json.dumps(_fixture()), encoding="utf-8")
+            cases = stratified_sample(
+                load_benchmark(source, enforce_official_counts=False), 5, 2
+            )
+            baseline_output = Path(directory) / "baseline.json"
+            target_output = Path(directory) / "target.json"
+
+            def completed(case):
+                return {"answer": '{"answer_choice":"' + case.answer + '"}'}
+
+            run_benchmark(
+                cases,
+                {
+                    "closed-book": completed,
+                    "textbooks-rag": completed,
+                    "textbooks-agent": completed,
+                },
+                baseline_output,
+                source,
+                generation_model="fake-model",
+                resume=False,
+                system_metadata={
+                    "closed-book": {"version": 1},
+                    "textbooks-rag": {"version": 1},
+                    "textbooks-agent": {"version": 1},
+                },
+            )
+            agent_calls = []
+
+            def reused_system_must_not_run(case):
+                raise AssertionError("filtered reuse repeated a completed system")
+
+            def changed_agent(case):
+                agent_calls.append(case.case_id)
+                return {"answer": '{"answer_choice":"' + case.answer + '"}'}
+
+            report = run_benchmark(
+                cases,
+                {
+                    "closed-book": reused_system_must_not_run,
+                    "textbooks-rag": reused_system_must_not_run,
+                    "textbooks-agent": changed_agent,
+                },
+                target_output,
+                source,
+                generation_model="fake-model",
+                resume=False,
+                system_metadata={
+                    "closed-book": {"version": 1},
+                    "textbooks-rag": {"version": 1},
+                    "textbooks-agent": {"version": 2},
+                },
+                reuse_results_from=baseline_output,
+                reuse_systems={"closed-book", "textbooks-rag"},
+            )
+
+            self.assertEqual(len(agent_calls), 5)
+            self.assertEqual(report["reused_checkpoint"]["matched_results"], 10)
+
+    def test_targeted_agent_rerun_preserves_unrelated_provider_errors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "benchmark.json"
+            source.write_text(json.dumps(_fixture()), encoding="utf-8")
+            cases = stratified_sample(
+                load_benchmark(source, enforce_official_counts=False), 5, 2
+            )
+            output = Path(directory) / "results.json"
+            error_ids = {cases[0].case_id, cases[1].case_id}
+
+            def initial(case):
+                if case.case_id in error_ids:
+                    raise TimeoutError("fixture provider timeout")
+                return {"answer": '{"answer_choice":"' + case.answer + '"}'}
+
+            run_benchmark(
+                cases,
+                {"textbooks-agent": initial},
+                output,
+                source,
+                generation_model="fake-model",
+                resume=False,
+            )
+            calls = []
+
+            def targeted(case):
+                calls.append(case.case_id)
+                return {"answer": '{"answer_choice":"' + case.answer + '"}'}
+
+            report = run_benchmark(
+                cases,
+                {"textbooks-agent": targeted},
+                output,
+                source,
+                generation_model="fake-model",
+                resume=True,
+                rerun_agent_case_ids={cases[0].case_id},
+            )
+
+            self.assertEqual(calls, [cases[0].case_id])
+            unrelated = next(
+                item
+                for item in report["results"]
+                if item["case_id"] == cases[1].case_id
+            )
+            self.assertIn("TimeoutError", unrelated["error"])
+
     def test_summary_and_paired_mcnemar_counts(self):
         from graphrag.eval.mirage_benchmark import SystemResult
 

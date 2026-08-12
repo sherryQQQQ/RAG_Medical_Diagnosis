@@ -172,6 +172,60 @@ class RobustnessBenchmarkTests(unittest.TestCase):
             )
             self.assertEqual(len(calls), 60)
 
+    def test_generation_reuse_filter_reruns_only_changed_agent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset_path = root / "dataset.json"
+            baseline_path = root / "baseline.json"
+            target_path = root / "target.json"
+            save_pilot_dataset(dataset_path, DEFAULT_PREVIEW)
+
+            def completed(case):
+                return {
+                    "answer": case.reference_answer,
+                    "status": "completed",
+                    "tool_names": ["retrieve_medical_evidence"],
+                    "tool_errors": [],
+                    "retrieved_ids": ["doc-1"],
+                    "context_count": 1,
+                    "provider_request_count": 1,
+                }
+
+            run_generation(
+                dataset_path,
+                baseline_path,
+                root / "unused.sqlite3",
+                "fixture-model",
+                runners={system: completed for system in SYSTEMS},
+                resume=False,
+            )
+            agent_calls = []
+
+            def reused_rag_must_not_run(case):
+                raise AssertionError("reused RAG case was repeated")
+
+            def changed_agent(case):
+                agent_calls.append(case.case_id)
+                return completed(case)
+
+            report = run_generation(
+                dataset_path,
+                target_path,
+                root / "unused.sqlite3",
+                "fixture-model",
+                runners={
+                    "matched-rag": reused_rag_must_not_run,
+                    "matched-agent": changed_agent,
+                },
+                resume=False,
+                reuse_results_from=baseline_path,
+                reuse_systems={"matched-rag"},
+            )
+
+            self.assertEqual(len(agent_calls), 30)
+            self.assertEqual(report["reused_checkpoint"]["matched_results"], 30)
+            self.assertEqual(len(report["results"]), 60)
+
     def test_summary_reports_requested_robustness_metrics(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "dataset.json"

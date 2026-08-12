@@ -9,6 +9,7 @@ the LLM judge.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import statistics
@@ -355,6 +356,23 @@ def _generation_results(report: Mapping[str, Any]) -> dict[str, dict[str, System
     return by_case
 
 
+def _generation_case_fingerprint(outputs: Mapping[str, SystemResult]) -> str:
+    """Fingerprint only fields that can change a case-level judge decision."""
+    payload = {
+        system: {
+            "raw_answer": outputs[system].raw_answer,
+            "prediction": outputs[system].prediction,
+            "correct": outputs[system].correct,
+            "status": outputs[system].status,
+            "error": outputs[system].error,
+            "retrieved_ids": outputs[system].retrieved_ids,
+        }
+        for system in sorted(outputs)
+    }
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 def _summarize(
     generation_report: Mapping[str, Any],
     judgments: list[Mapping[str, Any]],
@@ -526,6 +544,7 @@ def run_judging(
     runner: JudgeRunner | None = None,
     resume: bool = True,
     enforce_official_counts: bool = True,
+    max_estimated_cost_usd: float | None = None,
 ) -> dict[str, Any]:
     from graphrag.eval.mirage_corpus import TextbooksBM25Retriever
 
@@ -551,6 +570,10 @@ def run_judging(
     results = _generation_results(generation_report)
     if any(set(results.get(case.case_id, {})) != set(JUDGED_SYSTEMS) for case in cases):
         raise ValueError("Generation report is incomplete for judged systems")
+    generation_fingerprints = {
+        case.case_id: _generation_case_fingerprint(results[case.case_id])
+        for case in cases
+    }
 
     previous: dict[str, dict[str, Any]] = {}
     if resume and output_path.exists():
@@ -561,11 +584,18 @@ def run_judging(
             raise ValueError("Judge checkpoint uses a different model")
         if saved.get("judge_schema_version") != JUDGE_SCHEMA_VERSION:
             raise ValueError("Judge checkpoint uses a different schema")
-        previous = {
-            str(item["case_id"]): item
-            for item in saved.get("judgments", [])
-            if not item.get("error")
-        }
+        previous = {}
+        for item in saved.get("judgments", []):
+            case_id = str(item["case_id"])
+            if item.get("error"):
+                continue
+            saved_fingerprint = item.get("generation_fingerprint")
+            if (
+                saved_fingerprint is not None
+                and saved_fingerprint != generation_fingerprints.get(case_id)
+            ):
+                continue
+            previous[case_id] = item
         for case_id, item in previous.items():
             _normalize_failure_categories(item, results[case_id])
 
@@ -616,6 +646,7 @@ def run_judging(
             "case_id": case.case_id,
             "dataset": case.dataset,
             "context_count": len(snippets),
+            "generation_fingerprint": generation_fingerprints[case.case_id],
             **payload,
             "latency_s": time.perf_counter() - started,
             "input_tokens": response.input_tokens,
@@ -636,6 +667,12 @@ def run_judging(
         }
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        spent = report["metrics"]["judge_system"]["estimated_cost_usd"] or 0.0
+        if max_estimated_cost_usd is not None and spent > max_estimated_cost_usd:
+            raise RuntimeError(
+                f"Judge cost guard exceeded: ${spent:.4f} > "
+                f"${max_estimated_cost_usd:.4f}"
+            )
         print(
             f"[{position}/{len(cases)}] {case.case_id}: "
             f"{'ERROR' if error else 'judged'}"
@@ -669,6 +706,7 @@ def main(argv: list[str] | None = None) -> None:
         default=os.getenv("MIRAGE_JUDGE_MODEL", "gemini-2.5-flash"),
     )
     parser.add_argument("--no-resume", action="store_true")
+    parser.add_argument("--cost-guard", type=float, default=1.0)
     args = parser.parse_args(argv)
     report = run_judging(
         args.generation_report,
@@ -677,6 +715,7 @@ def main(argv: list[str] | None = None) -> None:
         args.output,
         args.model,
         resume=not args.no_resume,
+        max_estimated_cost_usd=args.cost_guard,
     )
     print(json.dumps(report["metrics"], indent=2))
 

@@ -22,6 +22,11 @@ medical device.
 | 5C | External Medical MIRAGE adapter | Complete | 7,663 validated source cases and a frozen 500-case QOR selection |
 | 5D | MIRAGE online execution pilot | Complete | 10 paired cases exposed corpus coverage and provider-timeout failure modes |
 | 5E | Matched MedRAG Textbooks retrieval | Complete | 125,847 official snippets, pinned manifest, local BM25 index on external storage |
+| 5F | Matched-corpus RAG pilot | Complete | Textbooks RAG reached 7/10 with exact-choice parser and checkpoint reuse |
+| 5G | Matched-corpus Agent pilot | Complete | Controlled RAG/Agent comparison exposed reflection/task-policy conflict |
+| 5H | 100-case scaled evaluation | Complete | Agent v1 0.62 vs RAG 0.78; reflection regressed 11/14 correct drafts |
+| 5I | Behavioral robustness pilot | Complete | 30 matched cases exposed zero Agent abstention recall |
+| 5J | Task-policy-aware Agent | Complete | Agent v2 reached 0.76, eliminated observed reflection regressions, but did not fix abstention |
 
 ## Architecture
 
@@ -1038,6 +1043,203 @@ external benchmark, the next Agent revision should add an explicit task-policy
 decision for answer versus abstention, validate that decision separately from
 grounding, and avoid rewriting an already safe draft merely to satisfy the
 Reflector.
+
+### Stage 5J — Task-Policy-Aware Agent Reflection
+
+Goal: fix the Stage 5H failure mode in which a generic grounding Reflector
+overrode the benchmark contract, while testing whether a stronger open-clinical
+policy could also recognize missing patient-specific information. The retrieval
+experiment remains matched: Textbooks RAG and Agent v2 use the same frozen 100
+questions, MedRAG Textbooks corpus, SQLite FTS5 BM25, top-k 8, question-only
+retrieval, Gemini model, and generation instruction. LangGraph orchestration and
+validation policy remain the main Agent variable.
+
+The Agent state now carries an explicit per-example task mode, task policy, and
+allowed answer choices. Validation applies deterministic contracts before an
+LLM critique:
+
+- A multiple-choice draft with one explicit valid choice is preserved. Weak
+  retrieval cannot trigger a rewrite or abstention.
+- A multiple-choice draft without a valid choice is deterministically retried;
+  an LLM Reflector cannot waive the forced-choice contract.
+- An open clinical answer that safely discloses an injected tool failure can be
+  approved without paying for another model critique.
+- Other open answers use a policy-aware prompt that asks the Reflector to
+  distinguish missing retrieval evidence from decisive facts missing in the
+  patient's question.
+
+Provider requests, LLM reflection requests, and deterministic policy approvals
+are counted separately. Selective checkpoint import can reuse only unchanged
+systems, merge the 10-case pilot into the scaled run, and re-run a named Agent
+case without repeating the other 99. The judge stores a generation fingerprint
+per case, so a changed output invalidates only its own judgment. Generation and
+judge cost guards stop new work if recorded token cost exceeds the configured
+limit.
+
+Reproduce the scaled generation while reusing all completed closed-book, RAG,
+and 10-case Agent v2 results:
+
+~~~bash
+PYTHONUNBUFFERED=1 .venv.nosync/bin/python -m graphrag.main mirage-benchmark \
+  --limit 100 \
+  --seed 13 \
+  --systems closed-book textbooks-rag textbooks-agent \
+  --output graphrag/eval/external/mirage/stage5j_agent_v2_scaled.json \
+  --reuse-results-from \
+    graphrag/eval/external/mirage/textbooks_scaled_results.json \
+  --reuse-systems closed-book textbooks-rag \
+  --additional-reuse-results-from \
+    graphrag/eval/external/mirage/stage5j_agent_v2_pilot.json \
+  --additional-reuse-systems textbooks-agent \
+  --generation-cost-guard 1.50
+
+PYTHONUNBUFFERED=1 .venv.nosync/bin/python -m graphrag.main mirage-judge \
+  --generation-report \
+    graphrag/eval/external/mirage/stage5j_agent_v2_scaled.json \
+  --output \
+    graphrag/eval/external/mirage/stage5j_agent_v2_judgments.json \
+  --cost-guard 0.70
+~~~
+
+#### Scaled MIRAGE result
+
+Agent v2 recovered the large task-compliance loss from Agent v1 without
+surpassing direct RAG:
+
+| Metric | Closed-book | Textbooks RAG | Agent v1 | Agent v2 |
+|---|---:|---:|---:|---:|
+| Exact-choice accuracy | 0.84 | 0.78 | 0.62 | 0.76 |
+| Macro dataset accuracy | 0.84 | 0.78 | 0.62 | 0.76 |
+| Wilson 95% CI | [0.756, 0.899] | [0.689, 0.850] | [0.522, 0.709] | [0.668, 0.833] |
+| Invalid-choice rate | 0.00 | 0.00 | 0.10 | 0.02 |
+| Provider-error rate | 0.00 | 0.00 | 0.01 | 0.02 |
+
+Agent v2 per-dataset accuracy was 0.90 MMLU, 0.85 MedQA, 0.65 MedMCQA,
+0.55 PubMedQA, and 0.85 BioASQ. Against Agent v1 on the same cases, v2 had 14
+wins, zero losses, and 86 ties: +0.14 accuracy with exact McNemar p = 0.000122.
+Against Textbooks RAG, v2 had two wins, four losses, and 94 ties: -0.02 accuracy
+with exact McNemar p = 0.6875. The result supports the reflection fix but does
+not establish an Agent quality advantage over direct RAG.
+
+The remaining 2% invalid-choice rate consists entirely of two provider errors.
+The same MedQA and MedMCQA cases returned Gemini `504 DEADLINE_EXCEEDED` at 30,
+60, and 120-second request limits, so they remain measured reliability failures
+rather than being retried indefinitely. One additional MedMCQA question refers
+to a missing image. Agent v2 initially abstained; the deterministic contract
+forced a valid choice on retry, reducing invalid outputs without making the
+arbitrary answer correct. Task compliance cannot recover absent question data.
+
+Agent orchestration and performance changed substantially:
+
+| Metric | Agent v1 | Agent v2 | Textbooks RAG |
+|---|---:|---:|---:|
+| Policy approval rate | N/A | 0.98 | N/A |
+| Recorded LLM validation requests | 130 | 2 | 0 |
+| Retry-case rate | 0.24 | 0.03 | N/A |
+| Retry recovery | 0/7 | 1/3 | N/A |
+| Correct-first-draft regression | 11/14 | 0/0 | N/A |
+| p50 latency | 15.05 s | 6.77 s | 8.48 s |
+| p95 latency | 63.28 s | 21.34 s | 21.40 s |
+| Total tokens | 970,570 | 345,740 | 369,252 |
+| Provider requests | 260 | 103 | 100 |
+| Estimated generation cost | US$1.1972 | US$0.4473 | US$0.5470 |
+
+Relative to Agent v1, v2 reduced tokens by 64%, estimated generation cost by
+63%, p50 latency by 55%, and p95 latency by 66%, while gaining 14 accuracy
+points. Valid choices no longer incurred a second provider call. Agent v2's
+recorded token cost was slightly lower than direct RAG because its output token
+total was lower, although it made three more provider requests and lost two
+accuracy points. RAG latency comes from the reused Stage 5H checkpoint, so the
+small recorded latency difference is not treated as a causal speed advantage
+across execution dates. Two imported pilot cases used the earlier policy-aware
+LLM critique before invalid-choice retry became fully deterministic; their
+recorded reflection requests are retained rather than rewritten offline.
+
+The combined evidence judge found top-8 evidence sufficient in 0.50 of cases,
+judged Recall@8 of 0.508, and relevant-context rate of 0.196. RAG versus Agent v2
+faithfulness was 0.74 versus 0.73; unsupported-claim rate was 0.23 versus 0.20.
+Accuracy with sufficient evidence was 0.98 versus 0.96, and with insufficient
+evidence 0.58 versus 0.56. Compared with Agent v1's more conservative judged
+behavior, v2 restores forced-choice accuracy at the cost of no longer producing
+a large faithfulness advantage. This is the intended quality/caution trade-off,
+not evidence that reflection is universally beneficial. Because the changed
+Agent required a new combined judge call, the unchanged RAG outputs were also
+rejudged; small differences from the Stage 5H RAG judge metrics are evaluator
+variation, not a new RAG generation result.
+
+#### Open-clinical robustness result
+
+The same 30 Stage 5I cases were re-run only for Agent v2; all 30 matched RAG
+outputs were imported unchanged. A new combined judge run evaluated the reused
+RAG and new Agent outputs:
+
+~~~bash
+PYTHONUNBUFFERED=1 .venv.nosync/bin/python -m graphrag.main \
+  robustness-benchmark \
+  --corpus project-guidelines \
+  --output graphrag/eval/external/robustness/stage5j_results.json \
+  --judgments graphrag/eval/external/robustness/stage5j_judgments.json \
+  --reuse-results-from \
+    graphrag/eval/external/robustness/stage5i_guidelines_results.json \
+  --reuse-systems matched-rag \
+  --generation-cost-guard 0.35 \
+  --judge-cost-guard 0.20
+~~~
+
+| Metric | Reused matched RAG | Agent v2 |
+|---|---:|---:|
+| Overall behavior pass | 0.567 | 0.500 |
+| Overall reference accuracy | 0.433 | 0.400 |
+| Paired paraphrase+distractor consistency | 1.00 | 1.00 |
+| Abstention recall / F1 | 0.25 / 0.40 | 0.00 / 0.00 |
+| Conflict handling | 0.60 | 0.80 |
+| Tool-failure recovery | 1.00 | 1.00 |
+| Unsupported-claim rate | 0.10 | 0.167 |
+| Worst-slice behavior pass | 0.25 | 0.00 |
+| p50 / p95 latency | 2.25 / 5.44 s | 5.92 / 13.41 s |
+| Total tokens | 61,221 | 136,073 |
+| Provider requests | 30 | 64 |
+| Estimated generation cost | US$0.0518 | US$0.1171 |
+
+Agent v2 had zero paired behavior wins, two losses, and 28 ties against RAG
+(exact McNemar p = 0.5). Most importantly, the stronger natural-language
+Reflector still approved generic guideline answers in all four cases where the
+patient question omitted a decisive fact: initiation protocol, vaccination
+history, treatment days, or family history. Abstention recall therefore
+remained zero. This isolates the root cause beyond retrieval: relevant generic
+evidence was available, but generation and reflection treated population-level
+guidance as sufficient for a patient-specific decision.
+
+The RAG generation outputs are byte-for-byte reused, but some RAG reference and
+unsupported-claim labels differ from Stage 5I because the combined LLM judge was
+run again alongside the new Agent outputs. At n=30, these judge-only changes are
+reported as evaluator variability; deterministic slice guards and exact-choice
+metrics remain the primary protection against silently attributing them to the
+system.
+
+The task-aware prompt did improve one PSA answer by asking it to disclose that
+the retrieved guideline lacked race-specific guidance, but it did not reliably
+detect the deliberately removed family-history fact. Free-form self-reflection
+is therefore not a dependable answerability classifier. The next design should
+use a separate, structured query-completeness decision with explicit required
+fields or independently validated answerability labels before generation; it
+should not infer abstention solely from retrieval confidence.
+
+Post-run trace inspection found that safe tool-failure drafts commonly used the
+passive phrase `cannot be answered safely`, which the deterministic precheck did
+not initially recognize. The final code covers both active and passive safe
+abstention forms; all five saved first drafts pass the updated offline precheck.
+The recorded Stage 5J latency, tokens, and cost are not retroactively changed.
+This would have avoided seven provider requests in a future identical run,
+including one unnecessary retry that expanded an already safe failure notice.
+
+Stage 5J generation and judging used an estimated US$1.0507 in newly recorded
+tokens: US$0.4473 MIRAGE Agent generation, US$0.3811 MIRAGE judging, US$0.1171
+robustness Agent generation, and US$0.1052 robustness judging. Timed-out calls
+returned no usage metadata and are excluded from the token-based estimate.
+Every compatible prior closed-book, RAG, and Agent pilot generation checkpoint
+was reused. Within each new judge run, successful case judgments were reused on
+timeout or changed-case retries; raw paid outputs remain gitignored.
 
 ## Metrics by System Stage
 

@@ -285,6 +285,28 @@ class MirageJudgeTests(unittest.TestCase):
             )
             self.assertEqual(len(resumed["judgments"]), 5)
 
+            generation = json.loads(report_path.read_text(encoding="utf-8"))
+            changed = next(
+                item
+                for item in generation["results"]
+                if item["system"] == "textbooks-agent"
+            )
+            changed["raw_answer"] = '{"answer_choice":"B"}'
+            report_path.write_text(json.dumps(generation), encoding="utf-8")
+            calls.clear()
+
+            run_judging(
+                report_path,
+                dataset,
+                index,
+                output,
+                "gemini-2.5-flash",
+                runner=runner,
+                resume=True,
+                enforce_official_counts=False,
+            )
+            self.assertEqual(calls, [changed["case_id"]])
+
     def test_provider_error_is_sliced_as_generation_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             dataset, index, report_path, output = self._fixture(directory)
