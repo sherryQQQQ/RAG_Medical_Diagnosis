@@ -14,6 +14,8 @@ Commands:
                       Design or generate the Stage 5 behavioral robustness dataset
     robustness-benchmark
                       Run the Stage 5I matched RAG/Agent robustness pilot
+    answerability-shadow
+                      Run the zero-call Stage 5K answerability diagnostic
     mirage-benchmark  Prepare or run the external Medical MIRAGE benchmark
     mirage-judge      Judge scaled MIRAGE evidence and grounded generation
     mirage-corpus     Download and index the matched MedRAG Textbooks corpus
@@ -27,6 +29,7 @@ Examples:
     python -m graphrag.main e2e-benchmark --limit 10
     python -m graphrag.main robustness-generate --dry-run
     python -m graphrag.main robustness-benchmark --dry-run
+    python -m graphrag.main answerability-shadow
     python -m graphrag.main mirage-benchmark --download --dry-run
     python -m graphrag.main mirage-judge --help
     python -m graphrag.main mirage-corpus --dry-run
@@ -90,6 +93,10 @@ def main():
     elif command == "robustness-benchmark":
         from graphrag.eval.robustness_benchmark import main as run_robustness_benchmark
         run_robustness_benchmark(sys.argv[2:])
+
+    elif command == "answerability-shadow":
+        from graphrag.eval.answerability_shadow import main as run_answerability_shadow
+        run_answerability_shadow(sys.argv[2:])
 
     elif command == "mirage-benchmark":
         from graphrag.eval.mirage_benchmark import main as run_mirage_benchmark

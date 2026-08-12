@@ -1,13 +1,32 @@
-# Medical QA with Agentic GraphRAG
+# Does an Agent Layer Help Medical QA?
 
-This repository implements a grounded medical question-answering system that
-combines FAISS semantic retrieval, a Neo4j medical knowledge graph, Gemini, and
-a bounded LangGraph agent. It also separates retrieval evaluation from true
-end-to-end answer evaluation so that each system stage is measured with metrics
-that match its responsibility.
+## A Controlled RAG-vs-Agent Ablation and Failure Analysis
 
-This is an engineering and evaluation project, not a clinically validated
-medical device.
+This repository tests when Agent orchestration adds value beyond direct RAG.
+The primary experiment holds the question, MedRAG Textbooks corpus, BM25
+retriever, top-k 8, Gemini model, and generation instruction fixed; only the
+LangGraph orchestration and validation layer changes.
+
+The main result is negative, and that is the point:
+
+| Finding | Evidence |
+|---|---:|
+| A bounded Agent did not improve forced-choice medical QA | Direct RAG 0.78 vs Agent v2 0.76, n=100; exact McNemar p=0.6875 |
+| The apparent 14-point Agent improvement was removal of a harmful Reflector, not a new capability | Agent v1 0.62 → v2 0.76; the v1 Reflector regressed 11/14 initially correct drafts |
+| The Agent's plausible value window—clarification and safe abstention—remains unvalidated | Agent v2 abstention recall 0/4 on the open-clinical development cases |
+| The external matched-corpus evidence is BM25 Textbooks RAG, not demonstrated GraphRAG value | The project graph contains only 15 guideline chunks |
+
+The engineering contribution is an Agent evaluation and reliability harness:
+bounded tool calling, trace persistence, versioned evaluators, offline
+re-scoring, selective checkpoint reuse, targeted retry, and cost guards. It is
+an experiment, not a clinically validated medical device or a patient-specific
+decision system.
+
+Current architecture decision: forced-choice QA uses direct RAG plus a
+deterministic answer-format validator. The Agent path is retained only as a
+research prototype for open tasks that may require clarification, abstention,
+tool-failure recovery, or escalation; this repository does not claim that path
+is production ready.
 
 ## Current Status
 
@@ -27,37 +46,34 @@ medical device.
 | 5H | 100-case scaled evaluation | Complete | Agent v1 0.62 vs RAG 0.78; reflection regressed 11/14 correct drafts |
 | 5I | Behavioral robustness pilot | Complete | 30 matched cases exposed zero Agent abstention recall |
 | 5J | Task-policy-aware Agent | Complete | Agent v2 reached 0.76, eliminated observed reflection regressions, but did not fix abstention |
+| 5K | Offline answerability shadow diagnostic | Complete | Hand-crafted development-set gate intercepted 4/4 known missing-information cases at zero API cost; no holdout claim |
 
-## Architecture
+## Controlled Experimental Design
 
 ~~~mermaid
-flowchart TD
-    Q["Medical question"] --> A["LangGraph Agent state"]
-    A --> G["Mandatory graph retrieval"]
-    G --> N["Neo4j Aura"]
-    N --> V["Mandatory vector retrieval"]
-    V --> F["FAISS + all-mpnet-base-v2"]
-    F --> D{"Known drug mentioned?"}
-    D -- "Yes" --> S["Contraindication check"]
-    S --> X["Gemini answer generation"]
-    D -- "No" --> X
-    X --> R["Grounding and safety reflection"]
-    R -- "Retry, max 3" --> A
-    R -- "Approved" --> O["Final answer"]
-    O --> E["Stage 4 evaluator"]
-    E --> J["Independent Gemini judge"]
-    E --> T["Local JSON trace"]
-    E -. "Explicit opt-in only" .-> L["LangSmith trace"]
+flowchart LR
+    Q["Same MIRAGE question"] --> B["Same BM25 retrieval\nquestion only, top-k 8"]
+    B --> C["Same MedRAG Textbooks evidence"]
+    Q --> O["Answer options to generator only"]
+    C --> R["Direct RAG generation"]
+    O --> R
+    C --> A["LangGraph Agent generation"]
+    O --> A
+    A --> P["Task contract + bounded reflection"]
+    R --> E["Same exact-choice evaluator"]
+    P --> E
 ~~~
 
-The safety-critical retrieval order is enforced in code:
+The original bounded Agent runtime also implements the following enforced tool
+order for the small project-guideline corpus:
 
 ~~~text
 Graph -> Vector -> optional Contraindication -> Generation -> Reflection
 ~~~
 
-The LLM synthesizes and critiques answers, but it does not decide whether the
-mandatory grounding steps can be skipped.
+That runtime demonstrates orchestration and safety gating, but its graph contains
+only 15 chunks. The scaled external result comes from the matched Textbooks BM25
+experiment above and does not establish an advantage from graph retrieval.
 
 ## Implementation Stages
 
@@ -1241,6 +1257,87 @@ Every compatible prior closed-book, RAG, and Agent pilot generation checkpoint
 was reused. Within each new judge run, successful case judgments were reused on
 timeout or changed-case retries; raw paid outputs remain gitignored.
 
+### Stage 5K — Offline Answerability Shadow Diagnostic
+
+Goal: test one narrow hypothesis from the Stage 5I/5J failure analysis without
+another model call: would an explicit query-completeness contract intercept the
+four known cases where free-form reflection answered despite a missing decisive
+fact?
+
+Implemented:
+
+- Five hand-crafted decision contracts in
+  `graphrag/eval/specs/answerability_decisions.yaml`, one for each existing
+  robustness family.
+- Deterministic extraction of present and missing required fields before
+  generation.
+- A structured decision containing `decision_type`, `decision_requested`,
+  `known_patient_facts`, `required_patient_facts`, `missing_required_facts`,
+  `evidence_applicable`, `risk_level`, and `action`.
+- `answer`, `clarify`, and `abstain` routes plus deterministic clarification
+  text; unsupported decision types fail closed.
+- Fingerprint validation and offline reuse of the saved Stage 5J generation and
+  judgment checkpoints. No Gemini generation, retrieval, or judge request is
+  made.
+
+The rules were intentionally kept simple and auditable: initial methadone dose
+requires the initiation protocol, pneumococcal regimen requires vaccination
+history, target methadone dose requires the treatment window, PSA timing
+requires first-degree family history under this benchmark contract, and the DKA
+diagnosis requires the stated acid-base and ketone findings. These requirements
+were written after seeing the five development families. They are benchmark
+rules, not a general clinical ontology.
+
+Offline development-set result:
+
+| Metric | Saved Agent v2 | Hand-crafted shadow gate |
+|---|---:|---:|
+| Query-completeness cases | 25 | 25 |
+| Missing-information positives | 4 | 4 |
+| True positive / false positive / false negative | 0 / 0 / 4 | 4 / 0 / 0 |
+| Abstention precision | Not estimable | 1.00 |
+| Abstention recall | 0.00 | 1.00 |
+| Abstention F1 | 0.00 | 1.00 |
+| False abstention on 21 answerable controls | 0/21 | 0/21 |
+| Safe action on injected retrieval failure | 5/5 | 5/5 |
+| New model calls / estimated API cost | 0 / US$0.00 | 0 / US$0.00 |
+
+The gate covers all 30 cases, but query-completeness precision and recall use the
+same 25-case contract as Stage 5J: four abstention positives and 21 answerable
+negative controls. The five injected tool failures are scored separately. For
+ordinary answer routes, `evidence_applicable` remains `null` because a
+question-only gate cannot honestly determine whether retrieved evidence applies.
+
+This 4/4 result is a shadow diagnostic, not an accuracy improvement or a
+generalization claim. The rules were designed after inspecting these cases, the
+four positive labels are not clinician reviewed, the LLM judge is not calibrated,
+and there is no untouched holdout. A valid extension would freeze these rules,
+obtain independently reviewed cases, and evaluate once on a new holdout; this
+repository stops before making that stronger claim.
+
+Reproduce with zero external calls:
+
+~~~bash
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m graphrag.main \
+  answerability-shadow
+~~~
+
+The most consequential Agent failure was not a missing framework feature; it
+was a validator optimizing the wrong objective:
+
+~~~mermaid
+flowchart LR
+    D["14 initially correct Agent v1 drafts\nsent through retry/reflection"] --> W["11 became wrong or invalid"]
+    D --> K["3 remained correct"]
+    V2["Agent v2 deterministic\nforced-choice contract"] --> Z["0 observed correct-draft regressions"]
+~~~
+
+The Stage 5J gain from 0.62 to 0.76 is therefore described as removal of harmful
+reflection and restoration of task compliance, not evidence that the Agent
+learned a new reasoning capability.
+
+Validation: 81/81 active Agent, retrieval, graph, and evaluation tests passed.
+
 ## Metrics by System Stage
 
 Different stages require different metrics. Adding more metrics is useful only
@@ -1339,6 +1436,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.eval.test_mirage_judge \
   graphrag.eval.test_robustness_benchmark \
   graphrag.eval.test_robustness_generate \
+  graphrag.eval.test_answerability_shadow \
   graphrag.eval.test_synthetic_compare -v
 ~~~
 
@@ -1357,6 +1455,9 @@ graphrag/
     mirage_corpus.py           pinned Textbooks download and local BM25 index
     robustness_benchmark.py    matched RAG/Agent behavioral robustness pilot
     robustness_generate.py     behavioral robustness dataset generator
+    answerability_shadow.py    zero-call query-completeness diagnostic
+    specs/answerability_decisions.yaml
+                               five hand-crafted development contracts
     synthetic_compare.py       retrieval-only comparison
     data/                      versioned evaluation artifacts
     external/                  gitignored benchmark cache and paid run outputs
@@ -1386,4 +1487,17 @@ scripts/
 - Stage 5I contains only five internal families, one directional case, and
   model-judged open-ended answers. It diagnoses policies and evaluator behavior;
   it does not estimate population-level clinical robustness.
+- Stage 5H, 5I, and 5J results informed later policy design and are development
+  evidence, not an untouched final test. Gemini executions on different dates
+  also retain provider nondeterminism even at temperature zero.
+- Stage 5K's five answerability contracts were hand-written after inspecting the
+  same five families. Its 4/4 shadow result demonstrates coverage of known
+  failures only; required facts and abstention labels need independent clinical
+  review before a holdout test.
+- The Neo4j graph contains only 15 project-guideline chunks. The strongest
+  external result uses Textbooks BM25, so graph retrieval value has not been
+  established by this repository.
+- The LLM judge has not been calibrated against blinded repeated human ratings;
+  open-ended quality scores must be treated as diagnostics rather than clinical
+  outcome claims.
 - This system must not be used as a substitute for professional medical care.

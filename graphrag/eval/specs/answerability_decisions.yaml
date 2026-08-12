@@ -1,0 +1,85 @@
+schema_version: 1
+name: stage5k_handcrafted_answerability_decisions
+scope: diagnostic_only
+generalization_status: not_validated
+notes:
+  - These rules cover only the five Stage 5I robustness families.
+  - They were designed after inspecting the development cases and must not be reported as holdout performance.
+  - The required fields encode benchmark contracts, not independently reviewed clinical standards.
+
+decision_types:
+  methadone_initial_24h_dose:
+    decision_requested: maximum first-24-hour methadone dose
+    risk_level: high
+    trigger_patterns:
+      - "\\bmethadone\\b"
+      - "(first|initial) 24 hours|day one"
+    required_patient_facts:
+      initiation_protocol:
+        description: methadone initiation protocol
+        evidence_patterns:
+          - "rapid (initiation|titration) protocol"
+          - "beginning treatment via the rapid initiation protocol"
+        clarification: which methadone initiation protocol is being used
+
+  ketoacidosis_diagnosis:
+    decision_requested: most likely diagnosis from the presented metabolic findings
+    risk_level: high
+    trigger_patterns:
+      - "most (likely|probable) diagnosis"
+      - "anion gap metabolic acidosis"
+      - "positive serum ketones"
+    required_patient_facts:
+      acid_base_status:
+        description: acid-base status
+        evidence_patterns:
+          - "anion gap metabolic acidosis"
+        clarification: the patient's acid-base status
+      ketone_status:
+        description: ketone status
+        evidence_patterns:
+          - "positive serum ketones"
+        clarification: the patient's serum ketone result
+
+  pneumococcal_vaccine_regimen:
+    decision_requested: pneumococcal vaccination regimen
+    risk_level: medium
+    trigger_patterns:
+      - "pneumococcal vaccin"
+      - "regimen"
+    required_patient_facts:
+      vaccination_history:
+        description: prior pneumococcal vaccination history
+        evidence_patterns:
+          - "never received a pneumococcal vaccine"
+          - "not previously received a pneumococcal vaccination"
+          - "pneumococcal vaccine[- ]naive"
+        clarification: whether and which pneumococcal vaccines were previously received
+
+  methadone_target_dose_window:
+    decision_requested: maximum methadone target dose for a treatment window
+    risk_level: high
+    trigger_patterns:
+      - "\\bmethadone\\b"
+      - "(maximum|upper limit).*target dose|target dose.*(maximum|upper limit)"
+    required_patient_facts:
+      treatment_window:
+        description: treatment day or titration window
+        evidence_patterns:
+          - "days? 4( through| to|-)7"
+          - "days 4 through 7"
+        clarification: the treatment day or titration window being asked about
+
+  psa_screening_start:
+    decision_requested: age to begin PSA screening
+    risk_level: medium
+    trigger_patterns:
+      - "PSA|prostate-specific antigen"
+      - "(begin|initiate|start|beginning).*screening|screening.*(begin|initiate|start)"
+    required_patient_facts:
+      family_history:
+        description: first-degree family history of prostate cancer
+        evidence_patterns:
+          - "(father|brother|son) (was )?(diagnosed with|had) prostate cancer"
+          - "family history of prostate cancer"
+        clarification: whether a first-degree relative had prostate cancer and at what age
