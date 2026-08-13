@@ -49,6 +49,7 @@ is production ready.
 | 5J | Task-policy-aware Agent | Complete | Agent v2 reached 0.76, eliminated observed reflection regressions, but did not fix abstention |
 | 5K | Offline answerability shadow diagnostic | Complete | Hand-crafted development-set gate intercepted 4/4 known missing-information cases at zero API cost; no holdout claim |
 | 5L | Structured answerability Agent v3 | Complete | External 36-case stress test improved safe-deferral recall but exposed severe over-abstention and task-scope mismatch |
+| 5M | Provenance-aware clinical handoff scaffold | Complete (offline scaffold) | Two-question deterministic demo completes the bounded interview-to-diagnosis path; external diagnostic quality is not evaluated yet |
 
 ## Controlled Experimental Design
 
@@ -1448,6 +1449,51 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m graphrag.main \
 Raw source data, selections, generation results, and judge outputs stay under
 the gitignored `graphrag/eval/external/` directory.
 
+### Stage 5M — Provenance-Aware Clinical Handoff Scaffold
+
+Goal: move beyond forced-choice QA and isolate a more credible Agent capability:
+bounded information gathering followed by an auditable handoff to a fresh
+diagnostic context. This is an offline engineering scaffold, not a clinical
+accuracy result.
+
+Implemented:
+
+- A bounded LangGraph loop with at most three patient questions.
+- One structured interviewer update per round that both refreshes the clinical
+  handoff and chooses `ask` or `finalize`. Combining these operations avoids a
+  second model call per interview round.
+- Patient-interaction and evidence-retrieval tools behind injected interfaces.
+- Patient facts with stable fact IDs, present/absent/unknown status, and source
+  patient-turn IDs; unknown or invented turn references fail closed.
+- A `DiagnosticPacket` as the fresh diagnostician's only input: structured
+  handoff, retrieved evidence IDs, and optionally the cited raw patient turns.
+- Deterministic citation checks before the safety validator. Drafts citing facts
+  or evidence that were never observed are rejected without exposing the draft.
+- Explicit `answer`, `abstain`, and `escalate` outcomes, tool-call counters,
+  compact traces, and fail-closed patient/retrieval/model error paths.
+- An ablation switch that removes raw source turns while retaining the same
+  structured handoff, enabling a future provenance-value experiment.
+
+The zero-call demo asks two targeted questions, produces three sourced patient
+facts, retrieves one fixture passage, builds a fresh diagnostic packet, and
+passes its grounded fixture draft through the safety gate. It establishes
+control flow and contracts only; all medical content in the demo is scripted.
+
+~~~bash
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m \
+  graphrag.agent.clinical_demo
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
+  graphrag.agent.test_clinical_agent -v
+~~~
+
+No provider call or estimated API cost was incurred. The next valid experiment
+must connect frozen model adapters and compare raw conversation, free-text
+summary, structured handoff, and structured handoff plus source turns on the
+same held-out cases. Until that comparison is run, this repository makes no
+claim that handoff improves diagnosis.
+
+Validation: 118/118 active Agent, retrieval, graph, and evaluation tests passed.
+
 The most consequential Agent failure was not a missing framework feature; it
 was a validator optimizing the wrong objective:
 
@@ -1462,7 +1508,8 @@ The Stage 5J gain from 0.62 to 0.76 is therefore described as removal of harmful
 reflection and restoration of task compliance, not evidence that the Agent
 learned a new reasoning capability.
 
-Validation: 103/103 active Agent, retrieval, graph, and evaluation tests passed.
+Validation: the active Agent, retrieval, graph, and evaluation suite is run
+before each stage commit; see the latest stage section for the exact count.
 
 ## Metrics by System Stage
 
@@ -1553,6 +1600,7 @@ Run the focused suite without writing Python bytecode:
 PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.agent.test_react_agent \
   graphrag.agent.test_answerability_agent \
+  graphrag.agent.test_clinical_agent \
   graphrag.agent.test_tools \
   graphrag.agent.test_smoke \
   graphrag.retrieval.test_graph \
@@ -1576,6 +1624,10 @@ graphrag/
   agent/
     react_agent.py             bounded LangGraph workflow
     answerability_agent.py     structured Agent v3 gates and router
+    clinical_agent.py          bounded interview-to-handoff workflow
+    clinical_handoff.py        sourced fact and diagnostic packet contracts
+    clinical_tools.py          injected patient and retrieval tool interfaces
+    clinical_demo.py           zero-call deterministic handoff demo
     tools.py                   graph, vector, and safety tools
     smoke.py                   online execution smoke suite
   eval/
