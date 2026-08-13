@@ -16,6 +16,10 @@ Commands:
                       Run the Stage 5I matched RAG/Agent robustness pilot
     answerability-shadow
                       Run the zero-call Stage 5K answerability diagnostic
+    refusalbench-holdout
+                      Prepare the zero-call Stage 5L external Health holdout
+    refusalbench-benchmark
+                      Plan or run the Stage 5L external answerability benchmark
     mirage-benchmark  Prepare or run the external Medical MIRAGE benchmark
     mirage-judge      Judge scaled MIRAGE evidence and grounded generation
     mirage-corpus     Download and index the matched MedRAG Textbooks corpus
@@ -30,6 +34,8 @@ Examples:
     python -m graphrag.main robustness-generate --dry-run
     python -m graphrag.main robustness-benchmark --dry-run
     python -m graphrag.main answerability-shadow
+    python -m graphrag.main refusalbench-holdout --download
+    python -m graphrag.main refusalbench-benchmark --dry-run
     python -m graphrag.main mirage-benchmark --download --dry-run
     python -m graphrag.main mirage-judge --help
     python -m graphrag.main mirage-corpus --dry-run
@@ -97,6 +103,14 @@ def main():
     elif command == "answerability-shadow":
         from graphrag.eval.answerability_shadow import main as run_answerability_shadow
         run_answerability_shadow(sys.argv[2:])
+
+    elif command == "refusalbench-holdout":
+        from graphrag.eval.refusalbench_holdout import main as run_refusalbench_holdout
+        run_refusalbench_holdout(sys.argv[2:])
+
+    elif command == "refusalbench-benchmark":
+        from graphrag.eval.refusalbench_benchmark import main as run_refusalbench_benchmark
+        run_refusalbench_benchmark(sys.argv[2:])
 
     elif command == "mirage-benchmark":
         from graphrag.eval.mirage_benchmark import main as run_mirage_benchmark

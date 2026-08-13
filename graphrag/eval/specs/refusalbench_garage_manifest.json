@@ -1,0 +1,13 @@
+{
+  "name": "RefusalBench-GaRAGe",
+  "repository": "aashiqmuhamed/RefusalBench-GaRAGe",
+  "revision": "bd78827d9eea5d9bb70a6424856e0120f265d886",
+  "file": "refusalbench-garage.jsonl",
+  "url": "https://huggingface.co/datasets/aashiqmuhamed/RefusalBench-GaRAGe/resolve/bd78827d9eea5d9bb70a6424856e0120f265d886/refusalbench-garage.jsonl?download=true",
+  "bytes": 15624242,
+  "sha256": "c4e0a3f8dc486cd3f69d1c9b814f0265c02e4eaba84a99df0176dedba70fb267",
+  "license": "CC-BY-NC-4.0",
+  "paper": "https://aclanthology.org/2026.eacl-long.321/",
+  "dataset_card": "https://huggingface.co/datasets/aashiqmuhamed/RefusalBench-GaRAGe",
+  "intended_use": "non-commercial research evaluation only"
+}

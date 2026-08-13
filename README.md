@@ -13,7 +13,8 @@ The main result is negative, and that is the point:
 |---|---:|
 | A bounded Agent did not improve forced-choice medical QA | Direct RAG 0.78 vs Agent v2 0.76, n=100; exact McNemar p=0.6875 |
 | The apparent 14-point Agent improvement was removal of a harmful Reflector, not a new capability | Agent v1 0.62 → v2 0.76; the v1 Reflector regressed 11/14 initially correct drafts |
-| The Agent's plausible value window—clarification and safe abstention—remains unvalidated | Agent v2 abstention recall 0/4 on the open-clinical development cases |
+| The Agent's plausible value window—clarification and safe abstention—did not generalize cleanly | Agent v2 recall was 0/4 on development cases; Agent v3 raised external recall but clarified 0/3 and over-abstained |
+| A structured Agent v3 improved safe-deferral recall but over-abstained on an external stress test | Recall 0.67 vs 0.33 Direct RAG, but false abstention 0.78 and answerable accuracy 0.22 vs 0.44 |
 | The external matched-corpus evidence is BM25 Textbooks RAG, not demonstrated GraphRAG value | The project graph contains only 15 guideline chunks |
 
 The engineering contribution is an Agent evaluation and reliability harness:
@@ -47,6 +48,7 @@ is production ready.
 | 5I | Behavioral robustness pilot | Complete | 30 matched cases exposed zero Agent abstention recall |
 | 5J | Task-policy-aware Agent | Complete | Agent v2 reached 0.76, eliminated observed reflection regressions, but did not fix abstention |
 | 5K | Offline answerability shadow diagnostic | Complete | Hand-crafted development-set gate intercepted 4/4 known missing-information cases at zero API cost; no holdout claim |
+| 5L | Structured answerability Agent v3 | Complete | External 36-case stress test improved safe-deferral recall but exposed severe over-abstention and task-scope mismatch |
 
 ## Controlled Experimental Design
 
@@ -1322,6 +1324,130 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m graphrag.main \
   answerability-shadow
 ~~~
 
+### Stage 5L — Structured Answerability Agent v3
+
+Goal: freeze the Stage 5K hypothesis and test a general structured policy on an
+external holdout instead of tuning another prompt on the same four known
+missing-information cases. This stage evaluates answerability orchestration,
+not retrieval recall: every system receives the same question and the same
+benchmark-provided grounding documents.
+
+Implemented:
+
+- A separate LangGraph Agent v3 path; Agent v2 remains unchanged.
+- A strict query-completeness schema followed by a strict
+  evidence-applicability schema.
+- A deterministic router selecting `answer`, `clarify`, `abstain`, or
+  `escalate`; malformed gates and tool/generation errors fail closed.
+- Citation validation that rejects evidence IDs not returned by retrieval.
+- Injected query gate, retriever, evidence gate, and generator dependencies for
+  isolated testing.
+- Generation and judge checkpoints, selective error retry, per-system token,
+  cost and latency accounting, output-token limits, and default cost guards.
+- Operational safe-deferral, gate-clean safe-deferral, exact action,
+  per-action/slice, paired win/loss, invalid-output, answerable accuracy, and
+  selective-accuracy metrics.
+
+The external source is the official RefusalBench-GaRAGe dataset pinned at
+revision `bd78827d9eea5d9bb70a6424856e0120f265d886`. The 15.6 MB raw file has
+SHA-256 `c4e0a3f8dc486cd3f69d1c9b814f0265c02e4eaba84a99df0176dedba70fb267`.
+Seed 13 deterministically selects one answerable and one unanswerable variant
+for each of 18 independent `Health` sources: 36 cases total, with three cases
+from each of six refusal categories. The selection fingerprint is
+`ac9633aa1ec9d9ca0b8fff86a494d50c8f7b4bdaa05971d6ef1a5af5a88119e3`.
+The data is cross-model verified, not clinician reviewed, and the source's
+`Health` slice includes policy, regulatory, finance, and research-method
+questions as well as clinical material.
+
+External stress-test results (`gemini-2.5-flash`, 36 cases):
+
+| Metric | Direct RAG | Agent v2 | Agent v3 |
+|---|---:|---:|---:|
+| Exact action accuracy | 13/36 (0.361) | 11/36 (0.306) | 12/36 (0.333) |
+| Safe-deferral precision | 0.429 | 0.462 | 0.462 |
+| Safe-deferral recall | 0.333 | 0.333 | 0.667 |
+| Safe-deferral F1 | 0.375 | 0.387 | 0.545 |
+| False abstention on answerable cases | 0.444 | 0.389 | 0.778 |
+| Clarification recall | 0/3 | 0/3 | 0/3 |
+| Invalid action rate | 0.111 | 0.222 | 0.000 |
+| Answerable-case accuracy after judge contract normalization | 8/18 (0.444) | 6/18 (0.333) | 4/18 (0.222) |
+| Selective accuracy among emitted answers | 0.444 | 0.400 | 0.400 |
+
+Agent v3 improved the operational recall of unsafe-to-answer cases, but it did
+so by refusing too often. It did not improve exact routing or answer quality.
+Its 0% invalid-action rate shows the value of a deterministic output contract,
+but format reliability is not task correctness. Paired exact-action wins were
+5 Direct RAG vs 4 Agent v3, with 27 ties; this small stress test does not support
+a superiority claim.
+
+System trade-offs:
+
+| Metric | Direct RAG | Agent v2 | Agent v3 |
+|---|---:|---:|---:|
+| p50 / p95 latency, seconds | 5.27 / 9.32 | 8.90 / 29.21 | 9.67 / 16.96 |
+| Input / output / total tokens | 55,803 / 43,004 / 98,807 | 162,736 / 95,493 / 258,229 | 50,345 / 65,860 / 116,205 |
+| Recorded logical provider requests | 36 | 90 | 64 |
+| Estimated generation cost | US$0.1243 | US$0.2876 | US$0.1798 |
+| Extra orchestration calls | None | 45 reflections; 10 retries | 36 query gates; 18 evidence gates; 10 generations |
+
+Agent v3 used 18% more tokens and cost 45% more than Direct RAG, while Agent v2
+used 2.6 times the tokens and 2.3 times the cost. Agent v3 removed v2's long
+retry tail but still increased median latency by 83% over Direct RAG. Across
+generation, initial judging, and seven checkpointed judge retries, the run
+recorded 215 logical requests, 522,863 tokens, and an estimated US$0.6726.
+
+Failure analysis:
+
+- The principal root cause was a task-contract mismatch. The query gate was
+  designed for patient-specific clinical decisions, while this external slice
+  contains broader health-adjacent questions. It labeled 11/36 queries
+  `unsupported_task`, including 7/18 answerable controls.
+- All three ambiguity cases missed the required `clarify` action. Two query
+  gate responses were truncated/malformed and one violated a cross-field
+  invariant, so the deterministic router correctly failed closed to `abstain`
+  but could not recover the intended action.
+- Four evidence-gate responses were invalid. Counting fail-closed outputs as
+  operational deferrals raises Agent v3 safe-deferral F1 to 0.545; excluding
+  gate errors gives 0.485 on 29 cases, with a 0.733 false-abstention rate.
+- Agent v3 reached 3/3 on false premises and 2/3 on missing context, but 0/3 on
+  granularity mismatch, 0/3 on clarification, and only 1/3 exact escalation on
+  conflicting context.
+- The first judge pass truncated 7/18 outputs at the 2,048-token limit because
+  thinking consumed the response budget. The evaluator now disables judge
+  thinking, permits 4,096 output tokens, stores raw output, and checkpointed
+  retry reran only those seven cases. No generation was repeated.
+- The judge also marked two non-`answer` actions semantically correct. A
+  deterministic post-condition now forces every abstain, clarify, escalate, or
+  invalid action to incorrect on answerable cases; no paid re-judging was
+  required.
+
+The Agent/gates were not tuned or rerun after inspecting this holdout. The
+result argues against SFT or RL at this point: the immediate problems are task
+definition, structured-output reliability, and evaluation scope. A credible
+next experiment needs a frozen task taxonomy and an independently
+clinician-reviewed, patient-specific holdout before considering model training.
+
+Prepare and inspect the holdout without model calls:
+
+~~~bash
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m graphrag.main \
+  refusalbench-holdout --download
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m graphrag.main \
+  refusalbench-benchmark --dry-run
+~~~
+
+Run or resume the paid benchmark only after reviewing the dry-run budget:
+
+~~~bash
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m graphrag.main \
+  refusalbench-benchmark
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m graphrag.main \
+  refusalbench-benchmark --judge-only
+~~~
+
+Raw source data, selections, generation results, and judge outputs stay under
+the gitignored `graphrag/eval/external/` directory.
+
 The most consequential Agent failure was not a missing framework feature; it
 was a validator optimizing the wrong objective:
 
@@ -1336,7 +1462,7 @@ The Stage 5J gain from 0.62 to 0.76 is therefore described as removal of harmful
 reflection and restoration of task compliance, not evidence that the Agent
 learned a new reasoning capability.
 
-Validation: 81/81 active Agent, retrieval, graph, and evaluation tests passed.
+Validation: 103/103 active Agent, retrieval, graph, and evaluation tests passed.
 
 ## Metrics by System Stage
 
@@ -1426,6 +1552,7 @@ Run the focused suite without writing Python bytecode:
 ~~~bash
 PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.agent.test_react_agent \
+  graphrag.agent.test_answerability_agent \
   graphrag.agent.test_tools \
   graphrag.agent.test_smoke \
   graphrag.retrieval.test_graph \
@@ -1437,6 +1564,8 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.eval.test_robustness_benchmark \
   graphrag.eval.test_robustness_generate \
   graphrag.eval.test_answerability_shadow \
+  graphrag.eval.test_refusalbench_holdout \
+  graphrag.eval.test_refusalbench_benchmark \
   graphrag.eval.test_synthetic_compare -v
 ~~~
 
@@ -1446,6 +1575,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
 graphrag/
   agent/
     react_agent.py             bounded LangGraph workflow
+    answerability_agent.py     structured Agent v3 gates and router
     tools.py                   graph, vector, and safety tools
     smoke.py                   online execution smoke suite
   eval/
@@ -1456,6 +1586,8 @@ graphrag/
     robustness_benchmark.py    matched RAG/Agent behavioral robustness pilot
     robustness_generate.py     behavioral robustness dataset generator
     answerability_shadow.py    zero-call query-completeness diagnostic
+    refusalbench_holdout.py    pinned external answerability holdout adapter
+    refusalbench_benchmark.py  checkpointed RAG/Agent v2/v3 stress test
     specs/answerability_decisions.yaml
                                five hand-crafted development contracts
     synthetic_compare.py       retrieval-only comparison
@@ -1494,6 +1626,13 @@ scripts/
   same five families. Its 4/4 shadow result demonstrates coverage of known
   failures only; required facts and abstention labels need independent clinical
   review before a holdout test.
+- Stage 5L's external holdout is cross-model verified rather than clinician
+  reviewed. Its broad `Health` category includes nonclinical tasks, so it tests
+  general answerability orchestration and task-scope handling, not clinical
+  decision safety or retrieval quality.
+- Agent v3 was deliberately frozen after the Stage 5L run. Its fail-closed gate
+  errors and broad-task scope mismatch are reported as failures rather than
+  prompt-tuned away on the holdout.
 - The Neo4j graph contains only 15 project-guideline chunks. The strongest
   external result uses Textbooks BM25, so graph retrieval value has not been
   established by this repository.

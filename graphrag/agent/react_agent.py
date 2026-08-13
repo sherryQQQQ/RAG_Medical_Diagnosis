@@ -360,6 +360,7 @@ def reason_node(
     allow_optional_tool_calls: bool = True,
     max_tool_calls: int = MAX_TOOL_CALLS,
     model: str = GEMINI_MODEL,
+    max_tokens: int | None = None,
 ) -> dict:
     """LLM decides: call a tool or produce final answer."""
     effective_tools = TOOLS if tools is None else tools
@@ -373,6 +374,7 @@ def reason_node(
         temperature=0,
         request_timeout=GEMINI_REQUEST_TIMEOUT_S,
         retries=GEMINI_MAX_RETRIES,
+        max_tokens=max_tokens,
     )
     if allow_optional_tool_calls:
         llm = llm.bind_tools(effective_tools)
@@ -465,6 +467,7 @@ def validate_node(
     *,
     validation_prompt_template: str = VALIDATE_PROMPT,
     enable_policy_precheck: bool = False,
+    max_tokens: int | None = None,
 ) -> dict:
     """Self-critique: check if final answer is grounded in retrieved context."""
     # Extract last AI text response as candidate answer
@@ -526,6 +529,7 @@ def validate_node(
         temperature=0,
         request_timeout=GEMINI_REQUEST_TIMEOUT_S,
         retries=GEMINI_MAX_RETRIES,
+        max_tokens=max_tokens,
     )
     validation_prompt = validation_prompt_template.format(
         query=state["query"],
@@ -603,6 +607,7 @@ def build_agent(
     allow_optional_tool_calls: bool = True,
     max_tool_calls: int = MAX_TOOL_CALLS,
     model: str = GEMINI_MODEL,
+    max_tokens: int | None = None,
     validation_prompt_template: str = VALIDATE_PROMPT,
     enable_policy_precheck: bool = False,
 ):
@@ -620,6 +625,7 @@ def build_agent(
             allow_optional_tool_calls=allow_optional_tool_calls,
             max_tool_calls=max_tool_calls,
             model=model,
+            max_tokens=max_tokens,
         ),
     )
     graph.add_node("act", lambda state: act_node(state, effective_tools))
@@ -630,6 +636,7 @@ def build_agent(
             model,
             validation_prompt_template=validation_prompt_template,
             enable_policy_precheck=enable_policy_precheck,
+            max_tokens=max_tokens,
         ),
     )
 
