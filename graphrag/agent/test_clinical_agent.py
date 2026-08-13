@@ -238,6 +238,76 @@ class ClinicalHandoffAgentTests(unittest.TestCase):
         self.assertEqual(result["interview_calls"], 4)
         self.assertEqual(calls, [])
 
+    def test_benchmark_mode_forces_diagnosis_at_question_budget(self):
+        def incomplete(_conversation):
+            return ClinicalHandoff(
+                chief_complaint="dizziness",
+                facts=(fact("f-1", "dizziness", "patient-0"),),
+                missing_information=("onset",),
+                ready_for_diagnosis=False,
+            )
+
+        result = self._agent(
+            extract=incomplete,
+            plan=lambda *_: InterviewDecision(
+                "ask", "Need onset.", "When did it start?", "onset"
+            ),
+            patient=lambda *_: "I do not know.",
+            diagnose=lambda _: DiagnosticDraft(
+                answer="A best-effort benchmark answer [f-1, doc-1].",
+                differential=("fixture",),
+                recommendations=("fixture",),
+                cited_fact_ids=("f-1",),
+                cited_evidence_ids=("doc-1",),
+                confidence=0.2,
+            ),
+        ).invoke(
+            initial_clinical_state(
+                "I feel dizzy",
+                max_questions=3,
+                force_diagnosis_on_budget=True,
+            )
+        )
+
+        self.assertEqual(result["action"], "answer")
+        self.assertEqual(result["questions_asked"], 3)
+        self.assertEqual(result["interview_calls"], 4)
+        self.assertEqual(
+            result["interview_decision"].action,
+            "finalize",
+        )
+
+    def test_incomplete_finalize_requires_explicit_benchmark_override(self):
+        incomplete = ClinicalHandoff(
+            chief_complaint="dizziness",
+            facts=(fact("f-1", "dizziness", "patient-0"),),
+            missing_information=("onset",),
+            ready_for_diagnosis=False,
+        )
+        diagnosis = lambda _: DiagnosticDraft(
+            answer="A benchmark answer [f-1, doc-1].",
+            differential=("fixture",),
+            recommendations=("fixture",),
+            cited_fact_ids=("f-1",),
+            cited_evidence_ids=("doc-1",),
+            confidence=0.2,
+        )
+        agent = self._agent(
+            extract=incomplete,
+            plan=lambda *_: InterviewDecision("finalize", "Best effort."),
+            diagnose=diagnosis,
+        )
+
+        safe = agent.invoke(initial_clinical_state("I feel dizzy"))
+        benchmark = agent.invoke(
+            initial_clinical_state(
+                "I feel dizzy", allow_incomplete_finalize=True
+            )
+        )
+
+        self.assertEqual(safe["status"], "incomplete_handoff")
+        self.assertEqual(benchmark["action"], "answer")
+
     def test_handoff_cannot_cite_a_nonexistent_patient_turn(self):
         def invalid(_):
             return ClinicalHandoff(

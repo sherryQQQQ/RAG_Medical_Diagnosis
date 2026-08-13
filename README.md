@@ -50,6 +50,7 @@ is production ready.
 | 5K | Offline answerability shadow diagnostic | Complete | Hand-crafted development-set gate intercepted 4/4 known missing-information cases at zero API cost; no holdout claim |
 | 5L | Structured answerability Agent v3 | Complete | External 36-case stress test improved safe-deferral recall but exposed severe over-abstention and task-scope mismatch |
 | 5M | Provenance-aware clinical handoff scaffold | Complete (offline scaffold) | Two-question deterministic demo completes the bounded interview-to-diagnosis path; external diagnostic quality is not evaluated yet |
+| 5N | MediQ clinical handoff pilot | Complete | 5-case pilot: raw patient turns 3/5, structured handoff 3/5, handoff + cited turns 4/5; n is too small for a superiority claim |
 
 ## Controlled Experimental Design
 
@@ -1494,6 +1495,104 @@ claim that handoff improves diagnosis.
 
 Validation: 118/118 active Agent, retrieval, graph, and evaluation tests passed.
 
+### Stage 5N — MediQ Clinical Handoff Pilot
+
+Goal: test the Stage 5M architecture on external interactive cases and isolate
+the effect of the final handoff representation. This is a five-case engineering
+pilot, not a clinical or statistical validation.
+
+The official [MediQ repository](https://github.com/stellalisy/mediQ) is pinned at
+revision `faa2ce62fef0423e35af4c31d7537aad973173eb`; the CC-BY-4.0 development
+file has SHA-256
+`3bfc7090d060dd8d11e4237344ed78846707faab433a84d078191627ad3c9526`.
+Seed 13 selects one case from each of five high-frequency specialties, producing
+source IDs `487, 586, 423, 843, 502` and dataset fingerprint
+`6b6be9fdcf68601e`. The committed spec contains identifiers and source metadata,
+while questions and raw outputs remain gitignored.
+
+Controlled design:
+
+- The same interviewer, maximum three patient questions, conversation,
+  structured handoff, MedRAG Textbooks BM25 retriever, top-k 8, and
+  `gemini-2.5-flash` model are reused across conditions.
+- The local deterministic patient tool selects benchmark facts without model
+  calls. It approximates MediQ's fact-select patient cheaply but is less capable
+  than a natural-language patient simulator.
+- Retrieval uses the benchmark question plus acquired patient facts and never
+  answer-option text. All five cases returned eight contexts.
+- The fresh diagnostic call sees either all raw patient utterances, the
+  structured handoff, or the handoff plus its cited raw patient utterances.
+  The first condition does not include interviewer questions; it should be
+  described as a raw-patient-turn baseline, not a complete transcript baseline.
+- Structured outputs, patient/evidence IDs, call count, prompt length, token
+  limits, and cost are validated deterministically. Clinical traces are forced
+  to stay local even if general LangSmith tracing is enabled.
+- MediQ permits a forced benchmark choice with incomplete information. That
+  behavior requires an explicit benchmark-only override; the clinical default
+  still fails closed.
+
+Results:
+
+| Final diagnostic input | Exact choice | Wilson 95% CI | Valid output | Pipeline p50 / p95 | Conceptual pipeline tokens | Conceptual cost |
+|---|---:|---:|---:|---:|---:|---:|
+| Raw patient turns | 3/5 (0.60) | 0.23–0.88 | 4/5 (0.80) | 13.06 / 13.85 s | 35,566 | US$0.0345 |
+| Structured handoff | 3/5 (0.60) | 0.23–0.88 | 5/5 (1.00) | 13.41 / 13.85 s | 38,705 | US$0.0358 |
+| Handoff + cited patient turns | 4/5 (0.80) | 0.38–0.96 | 5/5 (1.00) | 13.50 / 14.32 s | 39,764 | US$0.0361 |
+
+The interview was shared across the three diagnostic ablations, so actual pilot
+cost is lower than the sum of the conceptual per-condition costs: 33 logical
+provider calls, 51,177 input tokens, 13,926 output tokens, 65,103 total tokens,
+and estimated cost US$0.0502. Interviewing used 18 calls and US$0.0282, 56% of
+the pilot cost. Mean patient questions were 2.6; three of five cases exhausted
+the question budget. Retrieval averaged 0.19 seconds and never returned empty.
+
+Handoff + cited turns had one paired win, zero losses, and four ties against
+each other representation; exact McNemar p=1.0. The apparent 20-point gain is
+therefore one case and is not statistically distinguishable from chance.
+Structured handoff alone changed format reliability, not exact-choice accuracy.
+The heuristic lexical handoff audit measured mean revealed-fact recall 0.865
+and precision 0.547; the latter is sensitive to fact granularity and unknown
+statements and must not be interpreted as a clinical hallucination rate.
+
+Failure analysis:
+
+- On source 502, the interviewer spent all three questions on sexual activity,
+  IUD use, and douching but never asked about diabetes, the decisive gold factor.
+  All three diagnostic representations were wrong. Active question selection,
+  not final summarization, was the primary failure.
+- On source 586, the lexical patient tool could not map generic questions about
+  injuries and vital signs to the corresponding hidden facts. This is a tool
+  semantic-matching failure and makes the single paired handoff win fragile.
+- One raw-patient-turn answer selected the correct choice but cited no textbook
+  evidence; exact-choice scoring counted it correct while the contract marked
+  it invalid. Structured conditions had no invalid citations.
+- One interviewer output claimed readiness while retaining missing fields. A
+  deterministic post-condition normalized readiness downward and preserved the
+  missing-information list; no provider response was regenerated.
+- Checkpoint recovery reused every completed response after two interrupted
+  runs. Only one genuinely missing condition call was added at the end.
+
+Reproduce the zero-call plan, then run or resume the guarded pilot:
+
+~~~bash
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m \
+  graphrag.eval.mediq_handoff_benchmark --download --dry-run
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -u -m \
+  graphrag.eval.mediq_handoff_benchmark --cost-guard 0.25
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -u -m \
+  graphrag.eval.mediq_handoff_benchmark --reuse-only
+~~~
+
+The final command is the strict zero-call replay: it fails before any provider
+request if an expected prompt is absent from the local checkpoint.
+
+The next experiment must be frozen before looking at new cases: repair the
+patient tool's medical concept mapping, use a true full-transcript baseline,
+and test an untouched larger MediQ selection. The current five cases must remain
+development evidence and must not be rerun after prompt tuning.
+
+Validation: 129/129 active Agent, retrieval, graph, and evaluation tests passed.
+
 The most consequential Agent failure was not a missing framework feature; it
 was a validator optimizing the wrong objective:
 
@@ -1614,6 +1713,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.eval.test_answerability_shadow \
   graphrag.eval.test_refusalbench_holdout \
   graphrag.eval.test_refusalbench_benchmark \
+  graphrag.eval.test_mediq_handoff_benchmark \
   graphrag.eval.test_synthetic_compare -v
 ~~~
 
@@ -1640,8 +1740,13 @@ graphrag/
     answerability_shadow.py    zero-call query-completeness diagnostic
     refusalbench_holdout.py    pinned external answerability holdout adapter
     refusalbench_benchmark.py  checkpointed RAG/Agent v2/v3 stress test
+    mediq_handoff_data.py pinned MediQ loader and deterministic patient tool
+    checkpointed_gemini.py reusable Gemini checkpoint and cost guards
+    mediq_handoff_benchmark.py interactive handoff experiment orchestration
     specs/answerability_decisions.yaml
                                five hand-crafted development contracts
+    specs/mediq_handoff_pilot.json
+                               pinned five-case interactive pilot design
     synthetic_compare.py       retrieval-only comparison
     data/                      versioned evaluation artifacts
     external/                  gitignored benchmark cache and paid run outputs

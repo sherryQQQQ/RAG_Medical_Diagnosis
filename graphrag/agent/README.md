@@ -57,3 +57,9 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m \
 
 This demo validates orchestration and provenance contracts only. It does not
 measure diagnostic accuracy or make a clinical-performance claim.
+
+The MediQ adapter adds two explicitly benchmark-only behaviors: a forced choice
+when the three-question budget is exhausted, and an opt-in incomplete-finalize
+path matching the benchmark Expert protocol. Both are disabled by default for
+ordinary clinical-agent use. The adapter also disables LangSmith tracing so
+simulated patient conversations and raw provider outputs stay local.

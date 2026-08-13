@@ -47,6 +47,8 @@ class ClinicalAgentState(TypedDict):
     safety_decision: NotRequired[SafetyDecision]
     questions_asked: int
     max_questions: int
+    force_diagnosis_on_budget: bool
+    allow_incomplete_finalize: bool
     include_source_turns: bool
     pending_question: str
     action: str
@@ -114,19 +116,45 @@ def _interview_node(
         }
         if decision.action == "ask" and state["questions_asked"] >= state["max_questions"]:
             missing = ", ".join(handoff.missing_information) or "decisive patient facts"
-            result.update(
-                {
-                    "action": "abstain",
-                    "final_answer": (
-                        "I cannot provide a reliable assessment within the question "
-                        f"budget because information is still missing: {missing}."
+            if state["force_diagnosis_on_budget"]:
+                forced = InterviewDecision(
+                    action="finalize",
+                    reason=(
+                        "The benchmark question budget was exhausted; continue with "
+                        f"a best-effort forced choice while recording missing: {missing}."
                     ),
-                    "status": "question_budget_exhausted",
-                    "trace": state.get("trace", [])
-                    + ["interview_ask", "question_budget_exhausted"],
-                }
+                )
+                result.update(
+                    {
+                        "interview_decision": forced,
+                        "pending_question": "",
+                        "status": "question_budget_forced_diagnosis",
+                        "trace": state.get("trace", [])
+                        + ["interview_ask", "question_budget_forced_diagnosis"],
+                    }
+                )
+            else:
+                result.update(
+                    {
+                        "action": "abstain",
+                        "final_answer": (
+                            "I cannot provide a reliable assessment within the question "
+                            f"budget because information is still missing: {missing}."
+                        ),
+                        "status": "question_budget_exhausted",
+                        "trace": state.get("trace", [])
+                        + ["interview_ask", "question_budget_exhausted"],
+                    }
+                )
+        if (
+            decision.action == "finalize"
+            and not handoff.ready_for_diagnosis
+            and not (
+                state["force_diagnosis_on_budget"]
+                and state["questions_asked"] >= state["max_questions"]
             )
-        if decision.action == "finalize" and not handoff.ready_for_diagnosis:
+            and not state["allow_incomplete_finalize"]
+        ):
             result.update(
                 {
                     "action": "abstain",
@@ -355,6 +383,8 @@ def initial_clinical_state(
     *,
     max_questions: int = HARD_MAX_INTERVIEW_QUESTIONS,
     include_source_turns: bool = True,
+    force_diagnosis_on_budget: bool = False,
+    allow_incomplete_finalize: bool = False,
 ) -> ClinicalAgentState:
     """Create explicit state for a new bounded interview."""
     if not 0 <= max_questions <= HARD_MAX_INTERVIEW_QUESTIONS:
@@ -368,6 +398,8 @@ def initial_clinical_state(
         "conversation": [initial_turn],
         "questions_asked": 0,
         "max_questions": max_questions,
+        "force_diagnosis_on_budget": force_diagnosis_on_budget,
+        "allow_incomplete_finalize": allow_incomplete_finalize,
         "include_source_turns": include_source_turns,
         "pending_question": "",
         "action": "",

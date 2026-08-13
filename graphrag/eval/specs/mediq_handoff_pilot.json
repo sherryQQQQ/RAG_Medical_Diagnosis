@@ -1,0 +1,32 @@
+{
+  "format_version": 1,
+  "benchmark": "MediQ",
+  "paper": "https://arxiv.org/abs/2406.00922",
+  "repository": "https://github.com/stellalisy/mediQ",
+  "revision": "faa2ce62fef0423e35af4c31d7537aad973173eb",
+  "source_path": "data/all_dev_good.jsonl",
+  "source_sha256": "3bfc7090d060dd8d11e4237344ed78846707faab433a84d078191627ad3c9526",
+  "license": "CC-BY-4.0",
+  "seed": 13,
+  "selection_method": "one seeded sample from each listed specialty in source order",
+  "specialties": [
+    "Internal Medicine",
+    "Emergency Medicine",
+    "Pediatrics",
+    "Neurology",
+    "Obstetrics and Gynecology"
+  ],
+  "selected_source_ids": [487, 586, 423, 843, 502],
+  "max_questions": 3,
+  "retrieval": {
+    "corpus": "MedRAG Textbooks",
+    "method": "SQLite FTS5 BM25",
+    "top_k": 8,
+    "options_excluded": true
+  },
+  "diagnostic_conditions": [
+    "raw-conversation",
+    "structured-handoff",
+    "handoff-plus-sources"
+  ]
+}
