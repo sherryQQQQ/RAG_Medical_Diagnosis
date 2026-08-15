@@ -51,7 +51,7 @@ is production ready.
 | 5L | Structured answerability Agent v3 | Complete | External 36-case stress test improved safe-deferral recall but exposed severe over-abstention and task-scope mismatch |
 | 5M | Provenance-aware clinical handoff scaffold | Complete (offline scaffold) | Two-question deterministic demo completes the bounded interview-to-diagnosis path; external diagnostic quality is not evaluated yet |
 | 5N | MediQ clinical handoff pilot | Complete | 5-case pilot: raw patient turns 3/5, structured handoff 3/5, handoff + cited turns 4/5; n is too small for a superiority claim |
-| 5O | Concept-aware interactive holdout | Prepared (zero-call) | Clinical concept matcher, question-diversity gate, true full-transcript baseline, and untouched 30-case holdout frozen; paid run not started |
+| 5O | Concept-aware interactive holdout | Complete | Structured handoff and handoff + cited turns both reached 25/30 versus full transcript 22/30; provenance added auditability but no exact-choice gain over handoff alone |
 
 ## Controlled Experimental Design
 
@@ -1594,11 +1594,11 @@ development evidence and must not be rerun after prompt tuning.
 
 Validation: 129/129 active Agent, retrieval, graph, and evaluation tests passed.
 
-### Stage 5O — Concept-Aware Interactive Holdout (Prepared)
+### Stage 5O — Concept-Aware Interactive Holdout
 
 Goal: repair the two Stage 5N engineering failures without treating the same
-five cases as test evidence, then freeze a larger untouched comparison of final
-diagnostic input representations. No Stage 5O provider call has been made.
+five cases as test evidence, then run a larger untouched comparison of final
+diagnostic input representations.
 
 Offline Agent v2 changes:
 
@@ -1640,8 +1640,51 @@ Zero-call execution plan:
 | Maximum provider calls | 210 |
 | Patient / judge model calls | 0 / 0 |
 | Expected cost extrapolated from Stage 5N | US$0.3010 |
-| Conservative theoretical bound | US$1.4196 |
+| Conservative theoretical bound after one-shot truncation repair | US$1.9572 |
 | Enforced cost guard | US$2.00 |
+
+Results:
+
+| Final diagnostic input | Exact choice | Wilson 95% CI | Valid output | Selective accuracy | Pipeline p50 / p95 | Conceptual tokens | Conceptual cost |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Full transcript | 22/30 (0.733) | 0.556–0.858 | 25/30 (0.833) | 19/25 (0.760) | 11.95 / 19.71 s | 244,442 | US$0.2356 |
+| Structured handoff | 25/30 (0.833) | 0.664–0.927 | 23/30 (0.767) | 20/23 (0.870) | 11.97 / 20.14 s | 252,204 | US$0.2358 |
+| Handoff + cited turns | 25/30 (0.833) | 0.664–0.927 | 23/30 (0.767) | 20/23 (0.870) | 11.88 / 20.66 s | 261,130 | US$0.2388 |
+
+Handoff + cited turns had three paired wins, zero losses, and 27 ties versus
+full transcript (exact McNemar p=0.25). It had zero wins, zero losses, and 30
+ties versus structured handoff (p=1.0). The holdout therefore does not support
+the claim that adding cited raw turns improves exact-choice accuracy over the
+structured handoff alone. The defensible result is that structured compression
+preserved or improved accuracy relative to the raw transcript, while cited
+turns provide auditability at a small token/cost premium.
+
+Agent and system observations:
+
+- The Agent averaged 2.8 questions; 24/30 cases exhausted the three-question
+  budget. The coverage tool refined 27 questions across 17/30 cases. This is an
+  intervention rate, not causal evidence of improvement.
+- Patient-tool success was 100%. Mean lexical revealed-fact recall was 0.874
+  and precision was 0.607. Retrieval returned eight contexts for every case,
+  with zero empty results and about 0.16-second mean local latency.
+- Exact-choice accuracy by specialty for the two handoff conditions was 4/6
+  Internal Medicine, 4/6 Emergency Medicine, 6/6 Pediatrics, 6/6 Neurology,
+  and 5/6 Obstetrics and Gynecology.
+- Seven handoff outputs and five full-transcript outputs omitted required
+  patient or textbook citations. Five of the seven invalid handoff outputs
+  nevertheless contained the correct exact choice, so exact-choice accuracy
+  and valid-output/selective accuracy are reported separately.
+- The final checkpoint contains 209 logical provider calls, 331,399 input
+  tokens, 91,713 output tokens, 423,112 total tokens, p50/p95 provider latency
+  2.10/4.03 seconds, zero provider errors, and estimated cost US$0.3287.
+
+Failure repair was bounded and transparent. The first pass exposed two JSON
+truncations in interview output, two in diagnosis output, and a schema bug that
+allowed choice E on four-choice cases. A case-specific answer-choice schema and
+one-shot JSON/invalid-choice retry recovered those infrastructure failures.
+Only five retry calls plus six diagnoses missing behind the recovered
+interviews were added; citation omissions were not retried or normalized.
+Strict `--reuse-only` replay completed all 30 cases with zero new calls.
 
 The runner is locked by default: `--execute` is required before it can create a
 new provider response. Each response is checkpointed, and `--reuse-only` fails
@@ -1653,9 +1696,11 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m \
 # Run only after the printed call/cost plan is explicitly approved:
 PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -u -m \
   graphrag.eval.mediq_handoff_holdout --execute --cost-guard 2.0
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -u -m \
+  graphrag.eval.mediq_handoff_holdout --reuse-only
 ~~~
 
-Validation: 139/139 active Agent, retrieval, graph, and evaluation tests passed.
+Validation: 141/141 active Agent, retrieval, graph, and evaluation tests passed.
 
 The most consequential Agent failure was not a missing framework feature; it
 was a validator optimizing the wrong objective:

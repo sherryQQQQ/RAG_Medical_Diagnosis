@@ -16,6 +16,7 @@ from graphrag.eval.mediq_handoff_benchmark import (
     _diagnosis_prompt,
     _case_run,
     dry_run_plan,
+    diagnosis_schema,
     load_cases,
     load_spec,
     parse_diagnosis,
@@ -93,6 +94,16 @@ class MediQSourceTests(unittest.TestCase):
 
 
 class HandoffParsingTests(unittest.TestCase):
+    def test_diagnosis_schema_allows_only_supplied_choices(self):
+        schema = diagnosis_schema({"A": "One", "B": "Two"})
+        self.assertEqual(
+            schema["properties"]["answer_choice"]["enum"], ["A", "B"]
+        )
+        self.assertEqual(
+            DIAGNOSIS_SCHEMA["properties"]["answer_choice"]["enum"],
+            ["A", "B", "C", "D", "E"],
+        )
+
     def test_interview_rejects_an_invented_patient_turn(self):
         raw = json.dumps(
             {
@@ -236,6 +247,96 @@ class HandoffParsingTests(unittest.TestCase):
 
 
 class PilotExecutionTests(unittest.TestCase):
+    def test_runner_retries_truncated_json_and_case_invalid_choice_once(self):
+        calls = []
+
+        def provider(call_id, stage, _prompt, schema):
+            calls.append((call_id, stage, schema))
+            if stage == "interview":
+                raw = "{"
+            elif stage == "interview-retry-json":
+                raw = json.dumps(
+                    {
+                        "chief_complaint": "fever",
+                        "facts": [
+                            {
+                                "fact_id": "f-chief",
+                                "category": "symptom",
+                                "statement": "child has fever",
+                                "status": "present",
+                                "source_turn_ids": ["patient-0"],
+                            }
+                        ],
+                        "missing_information": [],
+                        "contradictions": [],
+                        "ready_for_diagnosis": True,
+                        "action": "finalize",
+                        "reason": "Enough information.",
+                        "question": "",
+                        "target_information": "",
+                    }
+                )
+            else:
+                choice = (
+                    "E"
+                    if stage == "diagnose:handoff-plus-sources"
+                    else "A"
+                )
+                raw = json.dumps(
+                    {
+                        "answer_choice": choice,
+                        "answer": "Diagnosis one",
+                        "differential": ["Diagnosis one"],
+                        "recommendations": ["Fixture evaluation"],
+                        "cited_patient_ids": (
+                            ["patient-0"]
+                            if "full-transcript" in stage
+                            else ["f-chief"]
+                        ),
+                        "cited_evidence_ids": ["doc-1"],
+                        "confidence": 0.7,
+                    }
+                )
+            return ProviderResponse(
+                raw_output=raw,
+                input_tokens=100,
+                output_tokens=20,
+                total_tokens=120,
+                latency_s=0.1,
+                reused=False,
+            )
+
+        result = _case_run(
+            fixture_case(),
+            provider=provider,
+            retriever=Retriever(),
+            max_questions=3,
+            top_k=8,
+            diagnostic_conditions=(
+                "full-transcript",
+                "structured-handoff",
+                "handoff-plus-sources",
+            ),
+        )
+
+        stages = [stage for _, stage, _ in calls]
+        self.assertIn("interview-retry-json", stages)
+        self.assertIn(
+            "diagnose:handoff-plus-sources:retry-contract-v1", stages
+        )
+        self.assertTrue(
+            all(item["correct"] for item in result["diagnoses"].values())
+        )
+        diagnosis_schemas = [
+            schema for _, stage, schema in calls if stage.startswith("diagnose:")
+        ]
+        self.assertTrue(
+            all(
+                schema["properties"]["answer_choice"]["enum"] == ["A", "B"]
+                for schema in diagnosis_schemas
+            )
+        )
+
     def test_checkpoint_reuses_saved_provider_response_without_api_call(self):
         prompt = "fixture prompt"
         with tempfile.TemporaryDirectory() as directory:

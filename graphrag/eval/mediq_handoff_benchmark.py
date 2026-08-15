@@ -9,12 +9,14 @@ Every provider response is checkpointed before the next call.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import os
 import re
 import statistics
 import time
+from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -149,6 +151,13 @@ DIAGNOSIS_SCHEMA = {
         "confidence",
     ],
 }
+
+
+def diagnosis_schema(options: Mapping[str, str]) -> dict[str, Any]:
+    """Constrain answer choice to the choices actually supplied by this case."""
+    schema = copy.deepcopy(DIAGNOSIS_SCHEMA)
+    schema["properties"]["answer_choice"]["enum"] = sorted(options)
+    return schema
 
 
 def _json_object(raw: str) -> Mapping[str, Any]:
@@ -481,11 +490,22 @@ def _case_run(
     ) -> InterviewUpdate:
         turn = sum(item.role == "agent" for item in conversation)
         prompt = _interview_prompt(case, conversation, previous, max_questions)
-        response = provider(
-            f"{case.case_id}:interview:{turn}", "interview", prompt, INTERVIEW_SCHEMA
-        )
+        call_id = f"{case.case_id}:interview:{turn}"
+        response = provider(call_id, "interview", prompt, INTERVIEW_SCHEMA)
         record_response("interview", response)
-        raw_payload = _json_object(response.raw_output)
+        try:
+            raw_payload = _json_object(response.raw_output)
+            update = parse_interview_update(response.raw_output, conversation)
+        except json.JSONDecodeError:
+            response = provider(
+                f"{call_id}:retry-json-v1",
+                "interview-retry-json",
+                prompt,
+                INTERVIEW_SCHEMA,
+            )
+            record_response("interview-retry-json", response)
+            raw_payload = _json_object(response.raw_output)
+            update = parse_interview_update(response.raw_output, conversation)
         if raw_payload.get("ready_for_diagnosis") and (
             raw_payload.get("missing_information")
             or raw_payload.get("contradictions")
@@ -493,7 +513,7 @@ def _case_run(
             interview_contract_corrections.append(
                 f"interview:{turn}:ready_normalized_false"
             )
-        return parse_interview_update(response.raw_output, conversation)
+        return update
 
     def retrieve(handoff: ClinicalHandoff) -> tuple[EvidenceItem, ...]:
         query = " ".join([case.question, *(fact.statement for fact in handoff.facts)])
@@ -517,28 +537,72 @@ def _case_run(
             for snippet in snippets
         )
 
-    def diagnose_primary(packet: DiagnosticPacket) -> DiagnosticDraft:
-        condition = "handoff-plus-sources"
-        prompt, allowed_patient_ids = _diagnosis_prompt(case, packet, condition)
-        response = provider(
-            f"{case.case_id}:diagnose:{condition}",
-            f"diagnose:{condition}",
-            prompt,
-            DIAGNOSIS_SCHEMA,
+    def diagnose_condition(
+        packet: DiagnosticPacket,
+        condition: str,
+        conversation: tuple[ConversationTurn, ...] = (),
+    ) -> tuple[dict[str, Any] | None, ProviderResponse, Exception | None]:
+        prompt, allowed_patient_ids = _diagnosis_prompt(
+            case, packet, condition, conversation=conversation
         )
-        record_response(f"diagnose:{condition}", response)
-        try:
-            parsed = parse_diagnosis(
+        call_id = f"{case.case_id}:diagnose:{condition}"
+        stage = f"diagnose:{condition}"
+        attempts = [provider(call_id, stage, prompt, diagnosis_schema(case.options))]
+        record_response(stage, attempts[-1])
+
+        def parse(response: ProviderResponse) -> dict[str, Any]:
+            return parse_diagnosis(
                 response.raw_output,
                 options=case.options,
                 allowed_patient_ids=allowed_patient_ids,
                 allowed_evidence_ids={item.evidence_id for item in packet.evidence},
             )
+
+        parsed: dict[str, Any] | None = None
+        final_error: Exception | None = None
+        try:
+            parsed = parse(attempts[-1])
         except Exception as error:
+            retryable = isinstance(error, json.JSONDecodeError) or str(error).startswith(
+                "Invalid answer choice:"
+            )
+            if retryable:
+                retry_stage = f"{stage}:retry-contract-v1"
+                attempts.append(
+                    provider(
+                        f"{call_id}:retry-contract-v1",
+                        retry_stage,
+                        prompt,
+                        diagnosis_schema(case.options),
+                    )
+                )
+                record_response(retry_stage, attempts[-1])
+                try:
+                    parsed = parse(attempts[-1])
+                except Exception as retry_error:
+                    final_error = retry_error
+            else:
+                final_error = error
+
+        combined = ProviderResponse(
+            raw_output=attempts[-1].raw_output,
+            input_tokens=sum(item.input_tokens for item in attempts),
+            output_tokens=sum(item.output_tokens for item in attempts),
+            total_tokens=sum(item.total_tokens for item in attempts),
+            latency_s=sum(item.latency_s for item in attempts),
+            reused=all(item.reused for item in attempts),
+        )
+        return parsed, combined, final_error
+
+    def diagnose_primary(packet: DiagnosticPacket) -> DiagnosticDraft:
+        condition = "handoff-plus-sources"
+        parsed, response, error = diagnose_condition(packet, condition)
+        if error is not None:
             diagnosis_outputs[condition] = _invalid_diagnosis_record(
                 response.raw_output, case, response, error
             )
-            raise
+            raise error
+        assert parsed is not None
         diagnosis_outputs[condition] = {
             **parsed,
             "correct": parsed["answer_choice"] == case.answer_choice,
@@ -602,26 +666,16 @@ def _case_run(
                         if turn.role == "patient"
                     ),
                 )
-            prompt, allowed_patient_ids = _diagnosis_prompt(
-                case,
-                condition_packet,
-                condition,
-                conversation=conversation,
-            )
-            response = provider(
-                f"{case.case_id}:diagnose:{condition}",
-                f"diagnose:{condition}",
-                prompt,
-                DIAGNOSIS_SCHEMA,
-            )
-            record_response(f"diagnose:{condition}", response)
+            response: ProviderResponse | None = None
             try:
-                parsed = parse_diagnosis(
-                    response.raw_output,
-                    options=case.options,
-                    allowed_patient_ids=allowed_patient_ids,
-                    allowed_evidence_ids={item.evidence_id for item in packet.evidence},
+                parsed, response, error = diagnose_condition(
+                    condition_packet,
+                    condition,
+                    conversation=conversation,
                 )
+                if error is not None:
+                    raise error
+                assert parsed is not None
                 diagnosis_outputs[condition] = {
                     **parsed,
                     "correct": parsed["answer_choice"] == case.answer_choice,
@@ -634,13 +688,17 @@ def _case_run(
                     "checkpoint_reused": response.reused,
                 }
             except Exception as error:
+                if response is None:
+                    raise
                 diagnosis_outputs[condition] = _invalid_diagnosis_record(
                     response.raw_output, case, response, error
                 )
 
     handoff = state.get("handoff")
     interview_latency = sum(
-        item["latency_s"] for item in model_trace if item["stage"] == "interview"
+        item["latency_s"]
+        for item in model_trace
+        if item["stage"].startswith("interview")
     )
     pipeline_latency_by_condition = {
         condition: (
@@ -683,7 +741,9 @@ def summarize(
     primary_condition: str = "handoff-plus-sources",
 ) -> dict[str, Any]:
     calls = list(provider.payload["calls"].values())
-    interview_calls = [item for item in calls if item["stage"] == "interview"]
+    interview_calls = [
+        item for item in calls if item["stage"].startswith("interview")
+    ]
     shared_interview_input = sum(int(item["input_tokens"]) for item in interview_calls)
     shared_interview_output = sum(int(item["output_tokens"]) for item in interview_calls)
     shared_interview_cost = provider.estimate_cost(
@@ -698,6 +758,8 @@ def summarize(
         ]
         diagnosis_input = sum(int(item["input_tokens"]) for item in outputs)
         diagnosis_output = sum(int(item["output_tokens"]) for item in outputs)
+        valid_outputs = [item for item in outputs if item.get("status") == "completed"]
+        valid_correct = sum(bool(item["correct"]) for item in valid_outputs)
         pipeline_latencies = [
             float(result["pipeline_latency_by_condition"][condition])
             for result in results
@@ -714,12 +776,45 @@ def summarize(
             "accuracy_95ci": _wilson_interval(
                 sum(bool(item["correct"]) for item in outputs), len(outputs)
             ),
-            "valid_outputs": sum(item.get("status") == "completed" for item in outputs),
+            "valid_outputs": len(valid_outputs),
             "valid_output_rate": (
-                sum(item.get("status") == "completed" for item in outputs) / len(outputs)
+                len(valid_outputs) / len(outputs)
                 if outputs
                 else 0.0
             ),
+            "selective_accuracy": (
+                valid_correct / len(valid_outputs) if valid_outputs else 0.0
+            ),
+            "invalid_but_exact_choice_correct": sum(
+                item.get("status") != "completed" and bool(item["correct"])
+                for item in outputs
+            ),
+            "invalid_reason_counts": dict(
+                Counter(
+                    item["error"].split(":", 1)[-1].strip()
+                    for item in outputs
+                    if item.get("status") != "completed"
+                )
+            ),
+            "accuracy_by_specialty": {
+                specialty: {
+                    "correct": sum(
+                        bool(result["diagnoses"][condition]["correct"])
+                        for result in results
+                        if result.get("specialty") == specialty
+                        and condition in result.get("diagnoses", {})
+                    ),
+                    "total": sum(
+                        1
+                        for result in results
+                        if result.get("specialty") == specialty
+                        and condition in result.get("diagnoses", {})
+                    ),
+                }
+                for specialty in sorted(
+                    {str(result.get("specialty")) for result in results}
+                )
+            },
             "p50_latency_s": statistics.median([item["latency_s"] for item in outputs]) if outputs else 0.0,
             "p95_latency_s": _percentile([item["latency_s"] for item in outputs], 0.95),
             "diagnosis_input_tokens": diagnosis_input,
@@ -800,6 +895,24 @@ def summarize(
             len(result.get("interview_contract_corrections", []))
             for result in results
         ),
+        "question_refinement_cases": sum(
+            "question_refined" in result.get("trace", []) for result in results
+        ),
+        "question_refinement_case_rate": (
+            sum("question_refined" in result.get("trace", []) for result in results)
+            / len(results)
+            if results
+            else 0.0
+        ),
+        "question_refinements": sum(
+            result.get("trace", []).count("question_refined") for result in results
+        ),
+        "patient_tool_success_rate": (
+            sum(result.get("trace", []).count("patient_tool_success") for result in results)
+            / sum(int(result.get("patient_tool_calls", 0)) for result in results)
+            if sum(int(result.get("patient_tool_calls", 0)) for result in results)
+            else 0.0
+        ),
         "retrieval_empty_rate": (
             sum(item.get("context_count", 0) == 0 for item in retrievals) / len(retrievals)
             if retrievals
@@ -816,6 +929,9 @@ def summarize(
             "p50_latency_s": statistics.median([float(item["latency_s"]) for item in calls]) if calls else 0.0,
             "p95_latency_s": _percentile([float(item["latency_s"]) for item in calls], 0.95),
             "estimated_cost_usd": provider.spent,
+            "retry_calls": sum("retry" in item["stage"] for item in calls),
+            "provider_errors": 0,
+            "provider_error_rate": 0.0,
             "stages": stages,
         },
     }

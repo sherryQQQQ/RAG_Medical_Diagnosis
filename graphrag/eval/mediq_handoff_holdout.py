@@ -12,7 +12,6 @@ from typing import Any, Mapping
 
 from graphrag.eval.checkpointed_gemini import CheckpointedGeminiProvider
 from graphrag.eval.mediq_handoff_benchmark import (
-    MAX_OUTPUT_TOKENS,
     MAX_PROMPT_CHARS,
     _case_run,
     _save_json,
@@ -30,6 +29,7 @@ from graphrag.eval.mediq_handoff_data import (
     download_source,
     sha256,
 )
+from graphrag.eval.mirage_benchmark import MODEL_PRICING_USD_PER_MILLION
 from graphrag.eval.mirage_corpus import DEFAULT_INDEX, TextbooksBM25Retriever
 
 
@@ -44,6 +44,7 @@ HOLDOUT_DIAGNOSTIC_CONDITIONS = (
 HOLDOUT_CASES = 30
 MAX_HOLDOUT_PROVIDER_CALLS = 210
 DEFAULT_HOLDOUT_COST_GUARD_USD = 2.0
+HOLDOUT_RETRY_MAX_OUTPUT_TOKENS = 2_048
 STAGE5N_COST_PER_CASE_USD = 0.0501681 / 5
 
 
@@ -195,6 +196,17 @@ def holdout_dry_run_plan(
             "requires_explicit_execute_flag": True,
         }
     )
+    pricing = MODEL_PRICING_USD_PER_MILLION[model]
+    plan["max_output_tokens"] = HOLDOUT_RETRY_MAX_OUTPUT_TOKENS
+    plan["theoretical_cost_bound_usd"] = (
+        plan["max_provider_calls"]
+        * (
+            MAX_PROMPT_CHARS * float(pricing["input"])
+            + HOLDOUT_RETRY_MAX_OUTPUT_TOKENS
+            * float(pricing["output_including_thinking"])
+        )
+        / 1_000_000
+    )
     if plan["max_provider_calls"] != MAX_HOLDOUT_PROVIDER_CALLS:
         raise ValueError("Stage 5O provider-call plan changed")
     return plan
@@ -219,7 +231,7 @@ def run_holdout(
         max_calls=MAX_HOLDOUT_PROVIDER_CALLS,
         max_cost_usd=cost_guard_usd,
         max_prompt_chars=MAX_PROMPT_CHARS,
-        max_output_tokens=MAX_OUTPUT_TOKENS,
+        max_output_tokens=HOLDOUT_RETRY_MAX_OUTPUT_TOKENS,
         allow_new_calls=not reuse_only,
     )
     retriever = TextbooksBM25Retriever(index_path)

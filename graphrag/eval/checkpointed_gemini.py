@@ -119,6 +119,7 @@ class CheckpointedGeminiProvider:
         self, call_id: str, stage: str, prompt: str, schema: Mapping[str, Any]
     ) -> ProviderResponse:
         prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
+        schema_hash = _canonical_hash(schema)
         existing = self.payload["calls"].get(call_id)
         if existing is not None:
             if (
@@ -126,6 +127,11 @@ class CheckpointedGeminiProvider:
                 or existing["prompt_sha256"] != prompt_hash
             ):
                 raise ValueError(f"Checkpoint prompt changed for {call_id}")
+            if (
+                existing.get("schema_sha256") is not None
+                and existing["schema_sha256"] != schema_hash
+            ):
+                raise ValueError(f"Checkpoint schema changed for {call_id}")
             return ProviderResponse(
                 raw_output=existing["raw_output"],
                 input_tokens=int(existing["input_tokens"]),
@@ -161,7 +167,7 @@ class CheckpointedGeminiProvider:
         os.environ["LANGSMITH_TRACING"] = "false"
         os.environ["LANGCHAIN_TRACING_V2"] = "false"
 
-        schema_key = _canonical_hash(schema)
+        schema_key = schema_hash
         if schema_key not in self._llms:
             self._llms[schema_key] = ChatGoogleGenerativeAI(
                 model=self.model,
@@ -180,6 +186,7 @@ class CheckpointedGeminiProvider:
         record = {
             "stage": stage,
             "prompt_sha256": prompt_hash,
+            "schema_sha256": schema_hash,
             "raw_output": _content_text(response),
             "latency_s": latency,
             **_usage(response),
