@@ -17,7 +17,7 @@ import statistics
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 # Patient conversations and raw model outputs remain local even when the user's
 # general project environment enables LangSmith tracing.
@@ -260,11 +260,23 @@ def _evidence_text(evidence: tuple[EvidenceItem, ...]) -> str:
 
 
 def _diagnosis_prompt(
-    case: MediQCase, packet: DiagnosticPacket, condition: str
+    case: MediQCase,
+    packet: DiagnosticPacket,
+    condition: str,
+    conversation: tuple[ConversationTurn, ...] = (),
 ) -> tuple[str, set[str]]:
-    if condition not in DIAGNOSTIC_CONDITIONS:
+    supported_conditions = set(DIAGNOSTIC_CONDITIONS) | {"full-transcript"}
+    if condition not in supported_conditions:
         raise ValueError(f"Unknown diagnostic condition: {condition}")
-    if condition == "raw-conversation":
+    if condition == "full-transcript":
+        if not conversation:
+            raise ValueError("Full-transcript condition requires the conversation")
+        patient_input = json.dumps([asdict(turn) for turn in conversation], indent=2)
+        allowed_patient_ids = {
+            turn.turn_id for turn in conversation if turn.role == "patient"
+        }
+        input_description = "Complete interviewer and patient transcript"
+    elif condition == "raw-conversation":
         patient_input = json.dumps([asdict(turn) for turn in packet.source_turns], indent=2)
         allowed_patient_ids = {turn.turn_id for turn in packet.source_turns}
         input_description = "Raw patient turns"
@@ -388,9 +400,14 @@ def _fact_retention(
     }
 
 
-def dry_run_plan(cases: list[MediQCase], spec: Mapping[str, Any], model: str) -> dict[str, Any]:
+def dry_run_plan(
+    cases: list[MediQCase],
+    spec: Mapping[str, Any],
+    model: str,
+    diagnostic_conditions: tuple[str, ...] = DIAGNOSTIC_CONDITIONS,
+) -> dict[str, Any]:
     max_interviewer_calls = len(cases) * (int(spec["max_questions"]) + 1)
-    diagnosis_calls = len(cases) * len(DIAGNOSTIC_CONDITIONS)
+    diagnosis_calls = len(cases) * len(diagnostic_conditions)
     max_calls = max_interviewer_calls + diagnosis_calls
     pricing = MODEL_PRICING_USD_PER_MILLION.get(model)
     if not pricing:
@@ -433,8 +450,15 @@ def _case_run(
     retriever: TextbooksBM25Retriever,
     max_questions: int,
     top_k: int,
+    diagnostic_conditions: tuple[str, ...] = DIAGNOSTIC_CONDITIONS,
+    patient_factory: Callable[[MediQCase], DeterministicFactPatient] = (
+        DeterministicFactPatient
+    ),
+    question_refiner: Any | None = None,
 ) -> dict[str, Any]:
-    patient = DeterministicFactPatient(case)
+    if "handoff-plus-sources" not in diagnostic_conditions:
+        raise ValueError("Diagnostic conditions require handoff-plus-sources")
+    patient = patient_factory(case)
     retrieval_trace: dict[str, Any] = {}
     diagnosis_outputs: dict[str, dict[str, Any]] = {}
     interview_contract_corrections: list[str] = []
@@ -543,7 +567,11 @@ def _case_run(
 
     graph = build_clinical_handoff_agent(
         interview=interview,
-        tools=ClinicalTools(ask_patient=patient, retrieve_evidence=retrieve),
+        tools=ClinicalTools(
+            ask_patient=patient,
+            retrieve_evidence=retrieve,
+            refine_question=question_refiner,
+        ),
         diagnose=diagnose_primary,
         validate_safety=validate,
     )
@@ -559,7 +587,10 @@ def _case_run(
     )
     if state.get("diagnostic_packet"):
         packet = state["diagnostic_packet"]
-        for condition in ("raw-conversation", "structured-handoff"):
+        conversation = tuple(state.get("conversation", []))
+        for condition in diagnostic_conditions:
+            if condition == "handoff-plus-sources":
+                continue
             condition_packet = packet
             if condition == "raw-conversation":
                 condition_packet = DiagnosticPacket(
@@ -572,7 +603,10 @@ def _case_run(
                     ),
                 )
             prompt, allowed_patient_ids = _diagnosis_prompt(
-                case, condition_packet, condition
+                case,
+                condition_packet,
+                condition,
+                conversation=conversation,
             )
             response = provider(
                 f"{case.case_id}:diagnose:{condition}",
@@ -626,6 +660,8 @@ def _case_run(
         "questions_asked": int(state.get("questions_asked", 0)),
         "interview_calls": int(state.get("interview_calls", 0)),
         "patient_tool_calls": int(state.get("patient_tool_calls", 0)),
+        "patient_matcher_version": patient.matcher_version,
+        "question_refiner_version": getattr(question_refiner, "version", "none"),
         "retrieval": retrieval_trace,
         "handoff": asdict(handoff) if handoff else None,
         "handoff_metrics": _fact_retention(handoff, patient) if handoff else None,
@@ -641,7 +677,10 @@ def _case_run(
 
 
 def summarize(
-    results: list[Mapping[str, Any]], provider: CheckpointedGeminiProvider
+    results: list[Mapping[str, Any]],
+    provider: CheckpointedGeminiProvider,
+    diagnostic_conditions: tuple[str, ...] = DIAGNOSTIC_CONDITIONS,
+    primary_condition: str = "handoff-plus-sources",
 ) -> dict[str, Any]:
     calls = list(provider.payload["calls"].values())
     interview_calls = [item for item in calls if item["stage"] == "interview"]
@@ -651,7 +690,7 @@ def summarize(
         shared_interview_input, shared_interview_output
     )
     by_condition: dict[str, Any] = {}
-    for condition in DIAGNOSTIC_CONDITIONS:
+    for condition in diagnostic_conditions:
         outputs = [
             result["diagnoses"][condition]
             for result in results
@@ -723,13 +762,17 @@ def summarize(
         }
 
     paired: dict[str, Any] = {}
-    for baseline in ("raw-conversation", "structured-handoff"):
+    for baseline in (
+        condition
+        for condition in diagnostic_conditions
+        if condition != primary_condition
+    ):
         left_wins = right_wins = ties = 0
         for result in results:
             diagnoses = result.get("diagnoses", {})
-            if "handoff-plus-sources" not in diagnoses or baseline not in diagnoses:
+            if primary_condition not in diagnoses or baseline not in diagnoses:
                 continue
-            left = bool(diagnoses["handoff-plus-sources"]["correct"])
+            left = bool(diagnoses[primary_condition]["correct"])
             right = bool(diagnoses[baseline]["correct"])
             if left and not right:
                 left_wins += 1
@@ -737,7 +780,7 @@ def summarize(
                 right_wins += 1
             else:
                 ties += 1
-        paired[f"handoff-plus-sources_vs_{baseline}"] = {
+        paired[f"{primary_condition}_vs_{baseline}"] = {
             "handoff_plus_sources_wins": left_wins,
             "baseline_wins": right_wins,
             "ties": ties,

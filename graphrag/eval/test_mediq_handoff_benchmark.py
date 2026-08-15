@@ -13,6 +13,7 @@ from graphrag.eval.mediq_handoff_benchmark import (
     DeterministicFactPatient,
     MediQCase,
     ProviderResponse,
+    _diagnosis_prompt,
     _case_run,
     dry_run_plan,
     load_cases,
@@ -20,6 +21,7 @@ from graphrag.eval.mediq_handoff_benchmark import (
     parse_diagnosis,
     parse_interview_update,
 )
+from graphrag.eval.mediq_handoff_data import ConceptAwareFactPatient
 
 
 class Snippet:
@@ -175,6 +177,63 @@ class HandoffParsingTests(unittest.TestCase):
         self.assertIn("three days", answer)
         self.assertIn("source-fact-2", patient.revealed)
 
+    def test_concept_patient_maps_generic_history_to_diabetes(self):
+        case = MediQCase(
+            case_id="mediq-history",
+            source_id=2,
+            specialty="Internal Medicine",
+            question="What is the diagnosis?",
+            initial_info="The patient reports irritation.",
+            context=("The patient reports irritation.",),
+            facts=("The patient has type 2 diabetes mellitus.",),
+            options={"A": "One", "B": "Two"},
+            answer_choice="A",
+        )
+        lexical = DeterministicFactPatient(case)
+        concept = ConceptAwareFactPatient(case)
+        conversation = (
+            ConversationTurn("patient-0", "patient", case.initial_info),
+        )
+
+        lexical_answer = lexical("Do you have any relevant medical history?", conversation)
+        concept_answer = concept("Do you have any relevant medical history?", conversation)
+
+        self.assertIn("cannot answer", lexical_answer)
+        self.assertIn("diabetes", concept_answer)
+        self.assertEqual(concept.matcher_version, "clinical-concept-v2")
+
+    def test_full_transcript_includes_questions_but_cites_only_patient_turns(self):
+        from graphrag.agent.clinical_handoff import (
+            ClinicalFact,
+            ClinicalHandoff,
+            DiagnosticPacket,
+            EvidenceItem,
+        )
+
+        conversation = (
+            ConversationTurn("patient-0", "patient", "I have fever."),
+            ConversationTurn("agent-1", "agent", "How long has it lasted?"),
+            ConversationTurn("patient-1", "patient", "Three days."),
+        )
+        packet = DiagnosticPacket(
+            handoff=ClinicalHandoff(
+                chief_complaint="fever",
+                facts=(
+                    ClinicalFact("f-1", "symptom", "fever", "present", ("patient-0",)),
+                ),
+            ),
+            evidence=(EvidenceItem("doc-1", "fixture", "textbook"),),
+            source_turns=(conversation[0],),
+        )
+
+        prompt, allowed_ids = _diagnosis_prompt(
+            fixture_case(), packet, "full-transcript", conversation
+        )
+
+        self.assertIn("How long has it lasted?", prompt)
+        self.assertEqual(allowed_ids, {"patient-0", "patient-1"})
+        self.assertNotIn("'agent-1'", str(sorted(allowed_ids)))
+
 
 class PilotExecutionTests(unittest.TestCase):
     def test_checkpoint_reuses_saved_provider_response_without_api_call(self):
@@ -278,7 +337,7 @@ class PilotExecutionTests(unittest.TestCase):
                         "target_information": "",
                     }
             else:
-                if "raw-conversation" in stage:
+                if "raw-conversation" in stage or "full-transcript" in stage:
                     patient_ids = ["patient-0"]
                 else:
                     patient_ids = ["f-chief"]
@@ -314,6 +373,27 @@ class PilotExecutionTests(unittest.TestCase):
         self.assertEqual(len(calls), 5)
         self.assertEqual(retriever.k, 8)
         self.assertTrue(result["retrieval"]["options_excluded"])
+
+        holdout = _case_run(
+            fixture_case(),
+            provider=provider,
+            retriever=Retriever(),
+            max_questions=3,
+            top_k=8,
+            diagnostic_conditions=(
+                "full-transcript",
+                "structured-handoff",
+                "handoff-plus-sources",
+            ),
+            patient_factory=ConceptAwareFactPatient,
+        )
+        self.assertEqual(
+            set(holdout["diagnoses"]),
+            {"full-transcript", "structured-handoff", "handoff-plus-sources"},
+        )
+        self.assertTrue(
+            all(item["correct"] for item in holdout["diagnoses"].values())
+        )
 
 
 if __name__ == "__main__":

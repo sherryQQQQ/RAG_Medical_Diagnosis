@@ -114,6 +114,7 @@ class ClinicalHandoffAgentTests(unittest.TestCase):
         retrieve=evidence_tool,
         diagnose=grounded_draft,
         safety=lambda *_: SafetyDecision("approve", "Grounded and safe."),
+        refine=None,
     ):
         def interviewer(conversation, _previous_handoff):
             handoff = extract(conversation) if callable(extract) else extract
@@ -127,6 +128,7 @@ class ClinicalHandoffAgentTests(unittest.TestCase):
             tools=ClinicalTools(
                 ask_patient=patient,
                 retrieve_evidence=retrieve,
+                refine_question=refine,
             ),
             diagnose=diagnose,
             validate_safety=safety,
@@ -276,6 +278,49 @@ class ClinicalHandoffAgentTests(unittest.TestCase):
             result["interview_decision"].action,
             "finalize",
         )
+
+    def test_question_refinement_tool_changes_the_recorded_question(self):
+        asked = []
+
+        def extract(conversation):
+            if len([turn for turn in conversation if turn.role == "patient"]) == 1:
+                return ClinicalHandoff(
+                    chief_complaint="fever",
+                    facts=(fact("f-1", "fever", "patient-0"),),
+                    missing_information=("duration",),
+                )
+            return ClinicalHandoff(
+                chief_complaint="fever",
+                facts=(fact("f-1", "fever", "patient-0"),),
+                ready_for_diagnosis=True,
+            )
+
+        def patient(question, _conversation):
+            asked.append(question)
+            return "Three days."
+
+        result = self._agent(
+            extract=extract,
+            plan=lambda handoff, *_: (
+                InterviewDecision("finalize", "Enough information.")
+                if handoff.ready_for_diagnosis
+                else InterviewDecision("ask", "Need duration.", "Original?", "duration")
+            ),
+            patient=patient,
+            refine=lambda *_: "How long has the fever lasted?",
+            diagnose=lambda _: DiagnosticDraft(
+                answer="Fixture answer [f-1, doc-1].",
+                differential=("fixture",),
+                recommendations=("fixture",),
+                cited_fact_ids=("f-1",),
+                cited_evidence_ids=("doc-1",),
+                confidence=0.5,
+            ),
+        ).invoke(initial_clinical_state("I have fever"))
+
+        self.assertEqual(asked, ["How long has the fever lasted?"])
+        self.assertEqual(result["conversation"][1].content, asked[0])
+        self.assertIn("question_refined", result["trace"])
 
     def test_incomplete_finalize_requires_explicit_benchmark_override(self):
         incomplete = ClinicalHandoff(

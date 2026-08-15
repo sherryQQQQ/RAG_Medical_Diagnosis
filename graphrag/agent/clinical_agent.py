@@ -184,9 +184,23 @@ def _ask_patient_node(
 ) -> dict[str, Any]:
     calls = state.get("patient_tool_calls", 0) + 1
     try:
+        question = state["pending_question"]
+        question_refined = False
+        if tools.refine_question is not None:
+            refined = " ".join(
+                tools.refine_question(
+                    question,
+                    tuple(state["conversation"]),
+                    state["handoff"],
+                ).split()
+            )
+            if not refined:
+                raise ValueError("Question-refinement tool returned an empty question")
+            question_refined = refined != question
+            question = refined
         response = " ".join(
             tools.ask_patient(
-                state["pending_question"], tuple(state["conversation"])
+                question, tuple(state["conversation"])
             ).split()
         )
         if not response:
@@ -196,7 +210,7 @@ def _ask_patient_node(
             ConversationTurn(
                 turn_id=f"agent-{question_number}",
                 role="agent",
-                content=state["pending_question"],
+                content=question,
             ),
             ConversationTurn(
                 turn_id=f"patient-{question_number}",
@@ -211,7 +225,9 @@ def _ask_patient_node(
             "patient_tool_calls": calls,
             "patient_tool_successes": state.get("patient_tool_successes", 0) + 1,
             "status": "patient_answered",
-            "trace": state.get("trace", []) + ["patient_tool_success"],
+            "trace": state.get("trace", [])
+            + (["question_refined"] if question_refined else [])
+            + ["patient_tool_success"],
         }
     except Exception as error:
         update = _fail_closed(state, status="patient_tool_error", error=error)

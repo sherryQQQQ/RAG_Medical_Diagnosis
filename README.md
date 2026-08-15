@@ -51,6 +51,7 @@ is production ready.
 | 5L | Structured answerability Agent v3 | Complete | External 36-case stress test improved safe-deferral recall but exposed severe over-abstention and task-scope mismatch |
 | 5M | Provenance-aware clinical handoff scaffold | Complete (offline scaffold) | Two-question deterministic demo completes the bounded interview-to-diagnosis path; external diagnostic quality is not evaluated yet |
 | 5N | MediQ clinical handoff pilot | Complete | 5-case pilot: raw patient turns 3/5, structured handoff 3/5, handoff + cited turns 4/5; n is too small for a superiority claim |
+| 5O | Concept-aware interactive holdout | Prepared (zero-call) | Clinical concept matcher, question-diversity gate, true full-transcript baseline, and untouched 30-case holdout frozen; paid run not started |
 
 ## Controlled Experimental Design
 
@@ -1593,6 +1594,69 @@ development evidence and must not be rerun after prompt tuning.
 
 Validation: 129/129 active Agent, retrieval, graph, and evaluation tests passed.
 
+### Stage 5O — Concept-Aware Interactive Holdout (Prepared)
+
+Goal: repair the two Stage 5N engineering failures without treating the same
+five cases as test evidence, then freeze a larger untouched comparison of final
+diagnostic input representations. No Stage 5O provider call has been made.
+
+Offline Agent v2 changes:
+
+- `clinical-concept-v2` combines auditable lexical matching with categories for
+  symptoms, timeline, vital signs, trauma, medical history, medication,
+  allergies, reproductive history, and social/family history. The Stage 5N
+  `lexical-v1` tool remains available and its 33 checkpoints still replay.
+- `clinical-coverage-v1` is an injected question-refinement tool. If the Agent
+  proposes another question from an already covered category, it substitutes
+  the highest-priority uncovered clinical category. The three-question hard
+  limit remains unchanged, and every substituted question is recorded in the
+  transcript and trace.
+- A true `full-transcript` ablation now includes both interviewer questions and
+  patient answers. Its diagnosis may cite patient turns but never Agent turns.
+- The deterministic lexicon, scoring weight, and question templates are frozen
+  by content fingerprint `2531a8ab7a28da93`; changing any of them invalidates
+  the holdout spec before execution.
+
+Development-only audit: replaying the already observed Stage 5N questions
+offline increased source 586's revealed facts from one to three. On source 502,
+the coverage gate replaced repeated reproductive-history questions with an
+uncovered medical-history question, allowing the patient tool to reveal
+diabetes. These are root-cause checks on seen cases, not new accuracy results.
+
+The untouched holdout uses seed 29, excludes all five Stage 5N source IDs, and
+freezes 30 cases: six each from Internal Medicine, Emergency Medicine,
+Pediatrics, Neurology, and Obstetrics and Gynecology. The three matched final
+inputs are `full-transcript`, `structured-handoff`, and
+`handoff-plus-sources`; interview, question budget, model, Textbooks BM25,
+top-k 8, retrieval query construction, and answer instruction remain shared.
+
+Zero-call execution plan:
+
+| Item | Frozen value |
+|---|---:|
+| Holdout cases | 30 |
+| Maximum interviewer calls | 120 |
+| Diagnostic calls | 90 |
+| Maximum provider calls | 210 |
+| Patient / judge model calls | 0 / 0 |
+| Expected cost extrapolated from Stage 5N | US$0.3010 |
+| Conservative theoretical bound | US$1.4196 |
+| Enforced cost guard | US$2.00 |
+
+The runner is locked by default: `--execute` is required before it can create a
+new provider response. Each response is checkpointed, and `--reuse-only` fails
+before any provider request when a checkpoint is missing.
+
+~~~bash
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m \
+  graphrag.eval.mediq_handoff_holdout --dry-run
+# Run only after the printed call/cost plan is explicitly approved:
+PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -u -m \
+  graphrag.eval.mediq_handoff_holdout --execute --cost-guard 2.0
+~~~
+
+Validation: 139/139 active Agent, retrieval, graph, and evaluation tests passed.
+
 The most consequential Agent failure was not a missing framework feature; it
 was a validator optimizing the wrong objective:
 
@@ -1714,6 +1778,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv.nosync/bin/python -m unittest \
   graphrag.eval.test_refusalbench_holdout \
   graphrag.eval.test_refusalbench_benchmark \
   graphrag.eval.test_mediq_handoff_benchmark \
+  graphrag.eval.test_mediq_handoff_holdout \
   graphrag.eval.test_synthetic_compare -v
 ~~~
 
@@ -1743,10 +1808,13 @@ graphrag/
     mediq_handoff_data.py pinned MediQ loader and deterministic patient tool
     checkpointed_gemini.py reusable Gemini checkpoint and cost guards
     mediq_handoff_benchmark.py interactive handoff experiment orchestration
+    mediq_handoff_holdout.py frozen concept-aware holdout and execution lock
     specs/answerability_decisions.yaml
                                five hand-crafted development contracts
     specs/mediq_handoff_pilot.json
                                pinned five-case interactive pilot design
+    specs/mediq_handoff_holdout.json
+                               untouched 30-case Agent v2 holdout design
     synthetic_compare.py       retrieval-only comparison
     data/                      versioned evaluation artifacts
     external/                  gitignored benchmark cache and paid run outputs

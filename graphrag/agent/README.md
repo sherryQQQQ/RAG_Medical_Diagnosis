@@ -63,3 +63,9 @@ when the three-question budget is exhausted, and an opt-in incomplete-finalize
 path matching the benchmark Expert protocol. Both are disabled by default for
 ordinary clinical-agent use. The adapter also disables LangSmith tracing so
 simulated patient conversations and raw provider outputs stay local.
+
+The Stage 5O adapter optionally injects a deterministic question-refinement
+tool. It detects repeated clinical categories and substitutes an uncovered
+category before calling the patient tool. The refined question—not the original
+proposal—is written to conversation state and the trace records
+`question_refined`. Ordinary clinical-agent use has no refiner by default.

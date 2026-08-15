@@ -1,0 +1,45 @@
+{
+  "format_version": 1,
+  "stage": "5O",
+  "benchmark": "MediQ",
+  "paper": "https://arxiv.org/abs/2406.00922",
+  "repository": "https://github.com/stellalisy/mediQ",
+  "revision": "faa2ce62fef0423e35af4c31d7537aad973173eb",
+  "source_path": "data/all_dev_good.jsonl",
+  "source_sha256": "3bfc7090d060dd8d11e4237344ed78846707faab433a84d078191627ad3c9526",
+  "license": "CC-BY-4.0",
+  "split_role": "untouched_holdout",
+  "seed": 29,
+  "cases_per_specialty": 6,
+  "selection_method": "seeded sample without replacement per specialty after excluding Stage 5N development IDs",
+  "specialties": [
+    "Internal Medicine",
+    "Emergency Medicine",
+    "Pediatrics",
+    "Neurology",
+    "Obstetrics and Gynecology"
+  ],
+  "excluded_source_ids": [487, 586, 423, 843, 502],
+  "selected_source_ids": [
+    1049, 141, 701, 1138, 1145, 567,
+    162, 979, 666, 743, 788, 38,
+    82, 216, 1036, 530, 877, 170,
+    637, 358, 1252, 791, 706, 454,
+    438, 899, 365, 497, 866, 824
+  ],
+  "max_questions": 3,
+  "patient_matcher": "clinical-concept-v2",
+  "question_refiner": "clinical-coverage-v1",
+  "clinical_tool_fingerprint": "2531a8ab7a28da93",
+  "retrieval": {
+    "corpus": "MedRAG Textbooks",
+    "method": "SQLite FTS5 BM25",
+    "top_k": 8,
+    "options_excluded": true
+  },
+  "diagnostic_conditions": [
+    "full-transcript",
+    "structured-handoff",
+    "handoff-plus-sources"
+  ]
+}

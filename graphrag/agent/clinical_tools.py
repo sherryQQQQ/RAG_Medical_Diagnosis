@@ -27,10 +27,20 @@ class RetrieveEvidenceTool(Protocol):
     def __call__(self, handoff: ClinicalHandoff) -> tuple[EvidenceItem, ...]: ...
 
 
+class RefineQuestionTool(Protocol):
+    def __call__(
+        self,
+        question: str,
+        conversation: tuple[ConversationTurn, ...],
+        handoff: ClinicalHandoff,
+    ) -> str: ...
+
+
 @dataclass(frozen=True)
 class ClinicalTools:
     ask_patient: AskPatientTool
     retrieve_evidence: RetrieveEvidenceTool
+    refine_question: RefineQuestionTool | None = None
 
 
 def callable_patient_tool(
