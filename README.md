@@ -1,7 +1,8 @@
-# Medical Diagnosis with Agentic GraphRAG
+# Medical GraphRAG: Vector vs Graph Retrieval
 
-This project is a medical question-answering system that evolves a baseline
-Retrieval-Augmented Generation demo into an agentic GraphRAG architecture.
+This repository is the original medical retrieval project. It compares a
+vector-only RAG baseline with graph-informed hybrid retrieval under the same
+synthetic medical benchmark.
 
 The core idea is simple: a language model should not answer medical questions
 from memory alone. It should first retrieve grounded clinical evidence, combine
@@ -16,11 +17,11 @@ Given a patient-style clinical question, the system is designed to:
 2. Compare a simple vector-only RAG baseline with a graph-informed hybrid method.
 3. Use structured medical terms from the original dataset to improve retrieval.
 4. Provide measurable evaluation using MRR, Top-1 accuracy, and Top-3 accuracy.
-5. Include an experimental LangGraph ReAct agent workflow that can use Gemini,
-   Neo4j, FAISS, and LangSmith once external credentials are configured.
-
 The current fully runnable path is the synthetic retrieval benchmark, which does
-not require external APIs. The full LLM/Neo4j agent path requires credentials.
+not require external APIs. Interactive interviewing, structured handoff, and
+Agent robustness research continue in the separate
+[interactive-agent](https://github.com/sherryQQQQ/interactive-agent)
+repository so the retrieval and Agent claims are not mixed.
 
 ## Architecture
 
@@ -43,22 +44,6 @@ flowchart TD
 
     I --> J["Result<br/>Hybrid retrieval beats vector-only baseline"]:::result
 
-    subgraph Agentic_Expansion["Agentic GraphRAG Expansion"]
-        K["LangGraph ReAct Agent"]:::agent
-        L["FAISS Vector Retriever"]:::agent
-        M["Neo4j Knowledge Graph"]:::agent
-        N["Gemini Generator"]:::agent
-        O["Reflector / Validator"]:::agent
-        K --> L
-        K --> M
-        L --> N
-        M --> N
-        N --> O
-        O --> K
-    end
-
-    J -. "validated retrieval layer" .-> Agentic_Expansion
-
     classDef data fill:#E8F3FF,stroke:#2563EB,stroke-width:2px,color:#0F172A;
     classDef process fill:#F0FDFA,stroke:#0D9488,stroke-width:2px,color:#0F172A;
     classDef baseline fill:#FFF7ED,stroke:#EA580C,stroke-width:2px,color:#0F172A;
@@ -67,7 +52,6 @@ flowchart TD
     classDef fusion fill:#ECFDF5,stroke:#16A34A,stroke-width:2px,color:#0F172A;
     classDef eval fill:#FEFCE8,stroke:#CA8A04,stroke-width:2px,color:#0F172A;
     classDef result fill:#DCFCE7,stroke:#15803D,stroke-width:2.5px,color:#052E16;
-    classDef agent fill:#FDF2F8,stroke:#DB2777,stroke-width:1.5px,color:#0F172A;
 ```
 
 ## How Synthetic Data Is Built
@@ -176,36 +160,6 @@ Ran 4 tests
 OK
 ```
 
-## Agentic GraphRAG Path
-
-The repository also contains an experimental LangGraph ReAct-style agent
-architecture:
-
-- `graphrag/retrieval/vector.py`: FAISS vector retriever
-- `graphrag/retrieval/graph.py`: Neo4j graph retriever
-- `graphrag/retrieval/hybrid.py`: RRF hybrid retriever
-- `graphrag/agent/react_agent.py`: LangGraph ReAct-style agent
-- `graphrag/kg/builder.py`: Gemini-based knowledge graph extraction
-- `graphrag/eval/benchmark.py`: benchmark scaffold
-
-The intended full workflow is:
-
-```text
-user query
--> planner / ReAct agent
--> vector retrieval from FAISS
--> graph retrieval from Neo4j
--> hybrid context fusion
--> Gemini answer generation
--> reflector validates grounding and safety
--> final medical QA answer
-```
-
-This path is implemented as a scaffold, but end-to-end execution requires
-external services: Gemini for generation, Neo4j for graph retrieval, and
-optionally LangSmith for tracing. The synthetic benchmark above is the fully
-runnable local evaluation path.
-
 ## Environment Variables
 
 Create a local `.env` file from the example:
@@ -251,20 +205,18 @@ graphrag/
     vector.py                 FAISS retriever
     graph.py                  Neo4j retriever
     hybrid.py                 RRF hybrid retriever
-  agent/
-    react_agent.py            LangGraph agent
   kg/
     builder.py                Gemini-to-Neo4j graph builder
 ```
 
-## Interview Summary
+## Project Summary
 
-This project demonstrates how a medical QA system can move from vanilla RAG to
-agentic GraphRAG. The baseline retrieves answer documents with vector-style
-matching. The improved method adds graph-informed clinical term retrieval and
-fuses rankings with RRF. On a synthetic benchmark derived from the original
-medical dataset, hybrid retrieval improves MRR from `0.598` to `0.853` and
-Top-3 accuracy from `0.648` to `0.901`.
+The baseline retrieves answer documents with vector-style matching. The hybrid
+method adds graph-informed clinical term retrieval and fuses rankings with RRF.
+On a synthetic benchmark derived from the original medical dataset, hybrid
+retrieval improves MRR from `0.598` to `0.853` and Top-3 accuracy from `0.648`
+to `0.901`.
 
-The main lesson: RAG gives grounding, graph retrieval gives structure, and an
-agent workflow gives controllable tool use and validation.
+The main lesson is scoped to retrieval: semantic and structured signals are
+complementary. It is not evidence that an Agent layer improves end-to-end
+medical QA; that separate question is evaluated in `interactive-agent`.
