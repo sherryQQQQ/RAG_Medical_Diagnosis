@@ -337,6 +337,146 @@ class PilotExecutionTests(unittest.TestCase):
             )
         )
 
+    def test_interview_retries_on_contract_violation_empty_source_turn_ids(self):
+        """Regression: interview_error 'Each clinical fact requires a patient-turn source'
+        should trigger a second retry (interview-retry-contract), not propagate."""
+        calls = []
+        valid_raw = json.dumps(
+            {
+                "chief_complaint": "fever",
+                "facts": [
+                    {
+                        "fact_id": "f-1",
+                        "category": "symptom",
+                        "statement": "fever",
+                        "status": "present",
+                        "source_turn_ids": ["patient-0"],
+                    }
+                ],
+                "missing_information": [],
+                "contradictions": [],
+                "ready_for_diagnosis": True,
+                "action": "finalize",
+                "reason": "done",
+                "question": "",
+                "target_information": "",
+            }
+        )
+        bad_raw = json.dumps(
+            {
+                "chief_complaint": "fever",
+                "facts": [
+                    {
+                        "fact_id": "f-1",
+                        "category": "symptom",
+                        "statement": "fever",
+                        "status": "present",
+                        "source_turn_ids": [],  # empty — triggers ValueError
+                    }
+                ],
+                "missing_information": [],
+                "contradictions": [],
+                "ready_for_diagnosis": False,
+                "action": "ask",
+                "reason": "need more",
+                "question": "Any other symptoms?",
+                "target_information": "duration",
+            }
+        )
+
+        def provider(call_id, stage, _prompt, _schema):
+            calls.append(stage)
+            if stage == "interview":
+                return ProviderResponse(bad_raw, 10, 10, 20, 0.1, False)
+            if stage == "interview-retry-json":
+                return ProviderResponse(bad_raw, 10, 10, 20, 0.1, False)
+            if stage == "interview-retry-contract":
+                return ProviderResponse(valid_raw, 10, 10, 20, 0.1, False)
+            # diagnosis stages
+            return ProviderResponse(
+                json.dumps(
+                    {
+                        "answer_choice": "A",
+                        "answer": "Diagnosis",
+                        "differential": ["Diagnosis"],
+                        "recommendations": ["Check"],
+                        "cited_patient_ids": ["f-1"],
+                        "cited_evidence_ids": ["doc-1"],
+                        "confidence": 0.8,
+                    }
+                ),
+                10, 10, 20, 0.1, False,
+            )
+
+        result = _case_run(
+            fixture_case(),
+            provider=provider,
+            retriever=Retriever(),
+            max_questions=3,
+            top_k=8,
+            diagnostic_conditions=("handoff-plus-sources",),
+        )
+        self.assertIn("interview-retry-json", calls)
+        self.assertIn("interview-retry-contract", calls)
+        self.assertEqual(result["status"], "answered")
+
+    def test_diagnosis_second_retry_on_persistent_json_decode_error(self):
+        """Regression: case_failed JSONDecodeError (char 12) should succeed on
+        second diagnosis retry (retry-contract-v2) rather than raising."""
+        calls = []
+        valid_diag = json.dumps(
+            {
+                "answer_choice": "A",
+                "answer": "Diagnosis one",
+                "differential": ["Diagnosis one"],
+                "recommendations": ["Eval"],
+                "cited_patient_ids": ["f-chief"],
+                "cited_evidence_ids": ["doc-1"],
+                "confidence": 0.9,
+            }
+        )
+        valid_interview = json.dumps(
+            {
+                "chief_complaint": "fever",
+                "facts": [
+                    {
+                        "fact_id": "f-chief",
+                        "category": "symptom",
+                        "statement": "fever",
+                        "status": "present",
+                        "source_turn_ids": ["patient-0"],
+                    }
+                ],
+                "missing_information": [],
+                "contradictions": [],
+                "ready_for_diagnosis": True,
+                "action": "finalize",
+                "reason": "done",
+                "question": "",
+                "target_information": "",
+            }
+        )
+
+        def provider(call_id, stage, _prompt, _schema):
+            calls.append(stage)
+            if "interview" in stage:
+                return ProviderResponse(valid_interview, 10, 10, 20, 0.1, False)
+            # first two diagnose calls return truncated JSON
+            if stage in ("diagnose:handoff-plus-sources", "diagnose:handoff-plus-sources:retry-contract-v1"):
+                return ProviderResponse("{", 10, 1, 11, 0.1, False)
+            return ProviderResponse(valid_diag, 10, 20, 30, 0.1, False)
+
+        result = _case_run(
+            fixture_case(),
+            provider=provider,
+            retriever=Retriever(),
+            max_questions=3,
+            top_k=8,
+            diagnostic_conditions=("handoff-plus-sources",),
+        )
+        self.assertIn("diagnose:handoff-plus-sources:retry-contract-v2", calls)
+        self.assertEqual(result["diagnoses"]["handoff-plus-sources"]["answer_choice"], "A")
+
     def test_checkpoint_reuses_saved_provider_response_without_api_call(self):
         prompt = "fixture prompt"
         with tempfile.TemporaryDirectory() as directory:
@@ -495,6 +635,218 @@ class PilotExecutionTests(unittest.TestCase):
         self.assertTrue(
             all(item["correct"] for item in holdout["diagnoses"].values())
         )
+
+
+class Phase1ConditionTests(unittest.TestCase):
+    def test_truncation_keeps_head_and_tail_within_budget(self):
+        from graphrag.agent.clinical_handoff import ConversationTurn
+        from graphrag.eval.mediq_handoff_benchmark import _truncate_headtail
+
+        turns = tuple(
+            ConversationTurn(
+                turn_id=f"patient-{i}" if i % 2 == 0 else f"agent-{i}",
+                role="patient" if i % 2 == 0 else "agent",
+                content=f"turn content number {i} " * 12,
+            )
+            for i in range(10)
+        )
+        full = json.dumps([{"turn_id": t.turn_id, "role": t.role, "content": t.content} for t in turns], indent=2)
+        budget = len(full) // 3
+        text, allowed = _truncate_headtail(turns, budget)
+        items = json.loads(text)
+        markers = [item for item in items if "elided_turns" in item]
+        self.assertEqual(len(markers), 1)
+        self.assertGreater(markers[0]["elided_turns"], 0)
+        kept_ids = {item["turn_id"] for item in items if "turn_id" in item}
+        self.assertIn(turns[0].turn_id, kept_ids)
+        self.assertIn(turns[-1].turn_id, kept_ids)
+        self.assertTrue(allowed <= {t.turn_id for t in turns if t.role == "patient"})
+        self.assertTrue(all(tid in kept_ids for tid in allowed))
+
+    def test_truncation_returns_everything_when_budget_is_large(self):
+        from graphrag.agent.clinical_handoff import ConversationTurn
+        from graphrag.eval.mediq_handoff_benchmark import _truncate_headtail
+
+        turns = (
+            ConversationTurn("patient-0", "patient", "hello"),
+            ConversationTurn("agent-1", "agent", "question"),
+        )
+        text, allowed = _truncate_headtail(turns, 100_000)
+        items = json.loads(text)
+        self.assertEqual(len(items), 2)
+        self.assertNotIn("elided_turns", json.dumps(items))
+        self.assertEqual(allowed, {"patient-0"})
+
+    def test_offline_runner_completes_five_phase1_conditions(self):
+        calls = []
+
+        def provider(call_id, stage, prompt, schema):
+            calls.append((call_id, stage))
+            if stage == "interview":
+                payload = {
+                    "chief_complaint": "fever",
+                    "facts": [
+                        {
+                            "fact_id": "f-chief",
+                            "category": "symptom",
+                            "statement": "child has fever",
+                            "status": "present",
+                            "source_turn_ids": ["patient-0"],
+                        }
+                    ],
+                    "missing_information": [],
+                    "contradictions": [],
+                    "ready_for_diagnosis": True,
+                    "action": "finalize",
+                    "reason": "Enough information.",
+                    "question": "",
+                    "target_information": "",
+                }
+            elif stage == "summarize":
+                self.assertIn("summary", json.dumps(schema))
+                payload = {"summary": "Child with fever; no other findings."}
+            else:
+                if "freetext-summary" in stage:
+                    patient_ids = ["summary"]
+                elif "full-transcript" in stage or "truncation-headtail" in stage:
+                    patient_ids = ["patient-0"]
+                else:
+                    patient_ids = ["f-chief"]
+                payload = {
+                    "answer_choice": "A",
+                    "answer": "Diagnosis one",
+                    "differential": ["Diagnosis one"],
+                    "recommendations": ["Fixture evaluation"],
+                    "cited_patient_ids": patient_ids,
+                    "cited_evidence_ids": ["doc-1"],
+                    "confidence": 0.7,
+                }
+            return ProviderResponse(
+                raw_output=json.dumps(payload),
+                input_tokens=100,
+                output_tokens=20,
+                total_tokens=120,
+                latency_s=0.1,
+                reused=False,
+            )
+
+        conditions = (
+            "full-transcript",
+            "truncation-headtail",
+            "freetext-summary",
+            "structured-handoff",
+            "handoff-plus-sources",
+        )
+        result = _case_run(
+            fixture_case(),
+            provider=provider,
+            retriever=Retriever(),
+            max_questions=3,
+            top_k=8,
+            diagnostic_conditions=conditions,
+        )
+        self.assertEqual(set(result["diagnoses"]), set(conditions))
+        self.assertTrue(all(item["correct"] for item in result["diagnoses"].values()))
+        self.assertEqual(
+            result["freetext_summary"], "Child with fever; no other findings."
+        )
+        stages = [stage for _, stage in calls]
+        self.assertEqual(stages.count("summarize"), 1)
+        # one interview + one summary + five diagnoses, no retries
+        self.assertEqual(len(calls), 7)
+
+    def test_checkpoint_status_reports_progress_without_api_calls(self):
+        from graphrag.eval.mediq_compaction_p1 import checkpoint_status
+
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "cp.json"
+            output = Path(directory) / "results.json"
+            self.assertFalse(checkpoint_status(checkpoint, output)["checkpoint_exists"])
+
+            def call(stage):
+                return {
+                    "stage": stage,
+                    "prompt_sha256": "x",
+                    "schema_sha256": "y",
+                    "raw_output": "{}",
+                    "latency_s": 0.1,
+                    "input_tokens": 10,
+                    "output_tokens": 2,
+                    "total_tokens": 12,
+                }
+
+            calls = {f"mediq-1:interview:{i}": call("interview") for i in range(3)}
+            calls["mediq-1:summarize"] = call("summarize")
+            for condition in (
+                "full-transcript",
+                "truncation-headtail",
+                "freetext-summary",
+                "structured-handoff",
+                "handoff-plus-sources",
+            ):
+                calls[f"mediq-1:diagnose:{condition}"] = call(f"diagnose:{condition}")
+            calls["mediq-2:interview:0"] = call("interview")
+            checkpoint.write_text(
+                json.dumps(
+                    {
+                        "format_version": 1,
+                        "model": "gemini-2.5-flash",
+                        "dataset_fingerprint": "9e3e9df2925823ed",
+                        "calls": calls,
+                    }
+                )
+            )
+            status = checkpoint_status(checkpoint, output)
+            self.assertTrue(status["checkpoint_exists"])
+            self.assertEqual(status["total_calls"], 10)
+            self.assertEqual(status["cases_touched"], 2)
+            self.assertEqual(status["cases_looking_complete"], 1)
+            self.assertEqual(status["calls_by_stage"]["interview"], 4)
+            self.assertEqual(status["calls_by_stage"]["summarize"], 1)
+            self.assertFalse(status["results_file_exists"])
+
+    def test_jsonl_logging_never_raises_and_round_trips(self):
+        from graphrag.eval.mediq_compaction_p1 import _append_jsonl
+
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "nested" / "run_log.jsonl"
+            _append_jsonl(log, {"event": "run_start", "cases": 3})
+            _append_jsonl(log, {"event": "case_done", "case_id": "mediq-1"})
+            lines = [
+                json.loads(line)
+                for line in log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertEqual([item["event"] for item in lines], ["run_start", "case_done"])
+
+            # Non-serialisable payloads must not raise (default=str), and an
+            # unwritable path must be swallowed: logging cannot kill a paid run.
+            _append_jsonl(log, {"event": "odd", "value": object()})
+            _append_jsonl(Path(directory) / "nested" / "run_log.jsonl" / "bad", {"a": 1})
+
+    def test_p1_spec_selection_and_dry_run_plan(self):
+        from graphrag.eval.mediq_compaction_p1 import (
+            P1_CONDITIONS,
+            load_p1_cases,
+            load_p1_spec,
+            p1_dry_run_plan,
+        )
+        from graphrag.eval.mediq_handoff_data import DEFAULT_SOURCE
+
+        if not DEFAULT_SOURCE.exists():
+            self.skipTest("pinned MediQ source not present")
+        spec = load_p1_spec()
+        cases = load_p1_cases(DEFAULT_SOURCE, spec)
+        self.assertEqual(len(cases), 100)
+        self.assertEqual(
+            [case.source_id for case in cases], spec["selected_source_ids"]
+        )
+        overlap = set(spec["selected_source_ids"]) & set(spec["excluded_source_ids"])
+        self.assertEqual(overlap, set())
+        plan = p1_dry_run_plan(cases, spec, "gemini-2.5-flash")
+        self.assertEqual(plan["diagnosis_calls"], 100 * len(P1_CONDITIONS))
+        self.assertEqual(plan["expected_logical_calls"], 400 + 100 + 500)
+        self.assertTrue(plan["requires_explicit_execute_flag"])
 
 
 if __name__ == "__main__":

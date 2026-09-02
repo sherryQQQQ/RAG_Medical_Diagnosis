@@ -22,3 +22,10 @@ __pycache__/
 # External benchmark questions and run outputs stay local. Commit adapters,
 # source metadata, and tests instead of redistributing benchmark examples.
 graphrag/eval/external/
+
+# Unrelated local projects and private interview/assistant artifacts.
+# Keep these files on the workstation, never in the medical research repos.
+/kellogg_change_point_refactor/
+/Medical_GraphRAG_Interview_STAR.docx
+/docs/internship_talking_points.md
+/docs/claude_code_handoff.md

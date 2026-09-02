@@ -22,7 +22,9 @@ import json
 import re
 import uuid
 from dataclasses import dataclass
-from typing import Annotated, Any, Callable, NotRequired, TypedDict
+from typing import Annotated, Any, Callable
+
+from typing_extensions import NotRequired, TypedDict
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI

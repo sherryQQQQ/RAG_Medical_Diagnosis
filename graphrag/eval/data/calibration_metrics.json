@@ -1,0 +1,212 @@
+{
+  "source": "graphrag/eval/external/mediq/p1_compaction_results.json",
+  "dataset_fingerprint": "9e3e9df2925823ed",
+  "n_cases": 98,
+  "arms": {
+    "full-transcript": {
+      "n_total": 91,
+      "n_abstain": 19,
+      "abstain_rate": 0.2087912087912088,
+      "abstain_correct": 10,
+      "abstain_wrong": 9,
+      "n_active": 72,
+      "accuracy_all": 0.5714285714285714,
+      "accuracy_active": 0.5833333333333334,
+      "mean_confidence_active": 0.8222222222222222,
+      "brier_score_full": 0.33560439560439564,
+      "brier_score_active": 0.2852777777777778,
+      "ece_active": 0.2388888888888889,
+      "risk_coverage": {
+        "0.0": {
+          "coverage": 1.0,
+          "accuracy": 0.5714285714285714,
+          "n_answered": 91
+        },
+        "0.5": {
+          "coverage": 0.7692307692307693,
+          "accuracy": 0.5857142857142857,
+          "n_answered": 70
+        },
+        "0.7": {
+          "coverage": 0.7032967032967034,
+          "accuracy": 0.59375,
+          "n_answered": 64
+        },
+        "0.8": {
+          "coverage": 0.6483516483516484,
+          "accuracy": 0.6271186440677966,
+          "n_answered": 59
+        },
+        "0.9": {
+          "coverage": 0.45054945054945056,
+          "accuracy": 0.7560975609756098,
+          "n_answered": 41
+        }
+      }
+    },
+    "truncation-headtail": {
+      "n_total": 91,
+      "n_abstain": 23,
+      "abstain_rate": 0.25274725274725274,
+      "abstain_correct": 13,
+      "abstain_wrong": 10,
+      "n_active": 68,
+      "accuracy_all": 0.5934065934065934,
+      "accuracy_active": 0.6029411764705882,
+      "mean_confidence_active": 0.8102941176470588,
+      "brier_score_full": 0.35615384615384615,
+      "brier_score_active": 0.28544117647058825,
+      "ece_active": 0.20735294117647057,
+      "risk_coverage": {
+        "0.0": {
+          "coverage": 1.0,
+          "accuracy": 0.5934065934065934,
+          "n_answered": 91
+        },
+        "0.5": {
+          "coverage": 0.7252747252747253,
+          "accuracy": 0.5909090909090909,
+          "n_answered": 66
+        },
+        "0.7": {
+          "coverage": 0.6703296703296703,
+          "accuracy": 0.5901639344262295,
+          "n_answered": 61
+        },
+        "0.8": {
+          "coverage": 0.5604395604395604,
+          "accuracy": 0.6666666666666666,
+          "n_answered": 51
+        },
+        "0.9": {
+          "coverage": 0.3956043956043956,
+          "accuracy": 0.7777777777777778,
+          "n_answered": 36
+        }
+      }
+    },
+    "freetext-summary": {
+      "n_total": 91,
+      "n_abstain": 23,
+      "abstain_rate": 0.25274725274725274,
+      "abstain_correct": 10,
+      "abstain_wrong": 13,
+      "n_active": 68,
+      "accuracy_all": 0.5164835164835165,
+      "accuracy_active": 0.5441176470588235,
+      "mean_confidence_active": 0.836764705882353,
+      "brier_score_full": 0.35615384615384615,
+      "brier_score_active": 0.3295588235294118,
+      "ece_active": 0.2926470588235294,
+      "risk_coverage": {
+        "0.0": {
+          "coverage": 1.0,
+          "accuracy": 0.5164835164835165,
+          "n_answered": 91
+        },
+        "0.5": {
+          "coverage": 0.7362637362637363,
+          "accuracy": 0.5373134328358209,
+          "n_answered": 67
+        },
+        "0.7": {
+          "coverage": 0.7142857142857143,
+          "accuracy": 0.5230769230769231,
+          "n_answered": 65
+        },
+        "0.8": {
+          "coverage": 0.6483516483516484,
+          "accuracy": 0.576271186440678,
+          "n_answered": 59
+        },
+        "0.9": {
+          "coverage": 0.42857142857142855,
+          "accuracy": 0.6666666666666666,
+          "n_answered": 39
+        }
+      }
+    },
+    "structured-handoff": {
+      "n_total": 91,
+      "n_abstain": 22,
+      "abstain_rate": 0.24175824175824176,
+      "abstain_correct": 15,
+      "abstain_wrong": 7,
+      "n_active": 69,
+      "accuracy_all": 0.5934065934065934,
+      "accuracy_active": 0.5652173913043478,
+      "mean_confidence_active": 0.8130434782608695,
+      "brier_score_full": 0.38384615384615384,
+      "brier_score_active": 0.28884057971014493,
+      "ece_active": 0.24782608695652175,
+      "risk_coverage": {
+        "0.0": {
+          "coverage": 1.0,
+          "accuracy": 0.5934065934065934,
+          "n_answered": 91
+        },
+        "0.5": {
+          "coverage": 0.7362637362637363,
+          "accuracy": 0.5671641791044776,
+          "n_answered": 67
+        },
+        "0.7": {
+          "coverage": 0.7032967032967034,
+          "accuracy": 0.578125,
+          "n_answered": 64
+        },
+        "0.8": {
+          "coverage": 0.5824175824175825,
+          "accuracy": 0.6415094339622641,
+          "n_answered": 53
+        },
+        "0.9": {
+          "coverage": 0.38461538461538464,
+          "accuracy": 0.7142857142857143,
+          "n_answered": 35
+        }
+      }
+    },
+    "handoff-plus-sources": {
+      "n_total": 91,
+      "n_abstain": 23,
+      "abstain_rate": 0.25274725274725274,
+      "abstain_correct": 16,
+      "abstain_wrong": 7,
+      "n_active": 68,
+      "accuracy_all": 0.6043956043956044,
+      "accuracy_active": 0.5735294117647058,
+      "mean_confidence_active": 0.8147058823529412,
+      "brier_score_full": 0.37714285714285717,
+      "brier_score_active": 0.26941176470588235,
+      "ece_active": 0.24117647058823524,
+      "risk_coverage": {
+        "0.0": {
+          "coverage": 1.0,
+          "accuracy": 0.6043956043956044,
+          "n_answered": 91
+        },
+        "0.5": {
+          "coverage": 0.7362637362637363,
+          "accuracy": 0.582089552238806,
+          "n_answered": 67
+        },
+        "0.7": {
+          "coverage": 0.6923076923076923,
+          "accuracy": 0.6031746031746031,
+          "n_answered": 63
+        },
+        "0.8": {
+          "coverage": 0.5604395604395604,
+          "accuracy": 0.6470588235294118,
+          "n_answered": 51
+        },
+        "0.9": {
+          "coverage": 0.4175824175824176,
+          "accuracy": 0.8157894736842105,
+          "n_answered": 38
+        }
+      }
+    }
+  }
+}

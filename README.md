@@ -7,6 +7,13 @@ The primary experiment holds the question, MedRAG Textbooks corpus, BM25
 retriever, top-k 8, Gemini model, and generation instruction fixed; only the
 LangGraph orchestration and validation layer changes.
 
+This is the Agent research repository. The original
+[Medical GraphRAG repository](https://github.com/sherryQQQQ/RAG_Medical_Diagnosis)
+keeps its `main` branch focused on the Vector RAG versus Graph RAG retrieval
+comparison; the ongoing interactive interviewing, structured handoff, and
+robustness experiments live in
+[interactive-agent](https://github.com/sherryQQQQ/interactive-agent).
+
 The main result is negative, and that is the point:
 
 | Finding | Evidence |
@@ -52,6 +59,22 @@ is production ready.
 | 5M | Provenance-aware clinical handoff scaffold | Complete (offline scaffold) | Two-question deterministic demo completes the bounded interview-to-diagnosis path; external diagnostic quality is not evaluated yet |
 | 5N | MediQ clinical handoff pilot | Complete | 5-case pilot: raw patient turns 3/5, structured handoff 3/5, handoff + cited turns 4/5; n is too small for a superiority claim |
 | 5O | Concept-aware interactive holdout | Complete | Structured handoff and handoff + cited turns both reached 25/30 versus full transcript 22/30; provenance added auditability but no exact-choice gain over handoff alone |
+| Phase 0 | Offline compression and failure audit | Complete | At three questions, structured JSON used 13% more diagnostic input tokens; 5/8 errors were shared across all representations, pointing to information acquisition |
+| Phase 1 | Pre-registered 100-case representation study | Complete | 91 evaluable cases: structured handoff 59.3% vs full transcript 57.1%, exact McNemar p=0.73; no significant accuracy or compression benefit |
+| Phase IG | Information-gain question selection | Implemented and frozen; not executed | Compares free-form, oracle-IG, and deployable simulated-IG under the same three-question budget |
+| Phase 2 | Long-context distractor stress test | Implemented and frozen; not executed | Tests full transcript, free-text summary, and structured handoff at 0/10/25 irrelevant turns |
+
+The two unexecuted phases require a separate cost report and explicit approval
+before any provider call. Their runners, frozen selections, distractors, and
+cost guards are committed so the hypotheses cannot be changed after observing
+the results.
+
+For reproducibility, use `requirements-agent.txt` for the Agent runtime and
+`requirements-benchmark.txt` for the external evaluation runners. The legacy
+Vector/Graph RAG demo has a separate dependency set in `requirements.txt`.
+The current Agent, retrieval, graph, and evaluation suite passes 149 tests in
+the Agent environment; legacy `final/` tests require its separate `txtai`
+environment.
 
 ## Controlled Experimental Design
 

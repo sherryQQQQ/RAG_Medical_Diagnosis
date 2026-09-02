@@ -1,0 +1,105 @@
+{
+  "experiment": "phase-2",
+  "description": "Distractor injection stress test for context-length robustness",
+  "n_cases": 30,
+  "selection_seed": 2,
+  "n_per_specialty": 6,
+  "specialties": [
+    "Emergency Medicine",
+    "Internal Medicine",
+    "Neurology",
+    "Obstetrics and Gynecology",
+    "Pediatrics"
+  ],
+  "k_levels": [
+    0,
+    10,
+    25
+  ],
+  "arms": [
+    "full-transcript",
+    "freetext-summary",
+    "structured-handoff"
+  ],
+  "primary_comparison": "structured-handoff vs full-transcript at k=25",
+  "diagnostic_representation": "structured-handoff",
+  "source_cases": [
+    "mediq-1218",
+    "mediq-1150",
+    "mediq-720",
+    "mediq-20",
+    "mediq-874",
+    "mediq-687",
+    "mediq-1119",
+    "mediq-1088",
+    "mediq-705",
+    "mediq-5",
+    "mediq-514",
+    "mediq-1065",
+    "mediq-901",
+    "mediq-1093",
+    "mediq-54",
+    "mediq-334",
+    "mediq-724",
+    "mediq-1156",
+    "mediq-1039",
+    "mediq-1178",
+    "mediq-822",
+    "mediq-690",
+    "mediq-217",
+    "mediq-619",
+    "mediq-630",
+    "mediq-1027",
+    "mediq-1134",
+    "mediq-721",
+    "mediq-553",
+    "mediq-274"
+  ],
+  "source_cases_by_specialty": {
+    "Emergency Medicine": [
+      "mediq-1218",
+      "mediq-1150",
+      "mediq-720",
+      "mediq-20",
+      "mediq-874",
+      "mediq-687"
+    ],
+    "Internal Medicine": [
+      "mediq-1119",
+      "mediq-1088",
+      "mediq-705",
+      "mediq-5",
+      "mediq-514",
+      "mediq-1065"
+    ],
+    "Neurology": [
+      "mediq-901",
+      "mediq-1093",
+      "mediq-54",
+      "mediq-334",
+      "mediq-724",
+      "mediq-1156"
+    ],
+    "Obstetrics and Gynecology": [
+      "mediq-1039",
+      "mediq-1178",
+      "mediq-822",
+      "mediq-690",
+      "mediq-217",
+      "mediq-619"
+    ],
+    "Pediatrics": [
+      "mediq-630",
+      "mediq-1027",
+      "mediq-1134",
+      "mediq-721",
+      "mediq-553",
+      "mediq-274"
+    ]
+  },
+  "distractor_fingerprint": "f07627bd54e59f76",
+  "selection_fingerprint": "10806ce213261c75",
+  "p1_results_fingerprint": "9e3e9df2925823ed",
+  "cost_guard_usd": 2.5,
+  "estimated_cost_usd": 1.5
+}

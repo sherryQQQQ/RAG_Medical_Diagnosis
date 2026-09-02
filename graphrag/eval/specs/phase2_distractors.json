@@ -1,0 +1,1508 @@
+{
+  "description": "Distractor Q&A pool for Phase 2 stress test",
+  "generation_seed": 42,
+  "n_distractors": 300,
+  "fingerprint": "f07627bd54e59f76",
+  "distractors": [
+    {
+      "source_case_id": 682,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Breastfeeding is initiated."
+    },
+    {
+      "source_case_id": 105,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Physical examination shows a 3-cm, nontender rash on her left upper torso."
+    },
+    {
+      "source_case_id": 420,
+      "question": "Does the patient take any medications?",
+      "answer": "A 28-year-old woman, gravida 1, para 0, at 32 weeks' gestation comes to the physician for a prenatal visit."
+    },
+    {
+      "source_case_id": 691,
+      "question": "Any relevant family history?",
+      "answer": "The study encompassed 250,000 adults between 45\u201379 years of age."
+    },
+    {
+      "source_case_id": 839,
+      "question": "What does the physical examination show?",
+      "answer": "An important step in the formation of thyroid hormones is the formation of I2 via oxidation of I-."
+    },
+    {
+      "source_case_id": 124,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Her rash is nonpruritic and confined to her knuckles."
+    },
+    {
+      "source_case_id": 1047,
+      "question": "Is there any relevant past medical history?",
+      "answer": "His past medical history is significant for hypertension, which is well-controlled with losartan."
+    },
+    {
+      "source_case_id": 783,
+      "question": "Does the patient take any medications?",
+      "answer": "Ophthalmologic examination shows visual acuity of 20/100 in both eyes."
+    },
+    {
+      "source_case_id": 603,
+      "question": "Any relevant family history?",
+      "answer": "An echocardiogram is conducted and reveals a left-to-right shunt across the interatrial septum."
+    },
+    {
+      "source_case_id": 995,
+      "question": "What does the physical examination show?",
+      "answer": "Blood test results show anemia, thrombocytopenia with small platelets, and leukopenia."
+    },
+    {
+      "source_case_id": 1091,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A previously healthy 29-year-old woman comes to the physician because of a 3-day history of low-grade fever, muscle aches, and a rash."
+    },
+    {
+      "source_case_id": 219,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A 25-year-old man presents to his primary care physician with complaints of coughing up blood in his sputum and dark-colored urine for 1 week."
+    },
+    {
+      "source_case_id": 1005,
+      "question": "Does the patient take any medications?",
+      "answer": "She denies any other symptoms."
+    },
+    {
+      "source_case_id": 114,
+      "question": "Any relevant family history?",
+      "answer": "His 19-year-old father is not involved."
+    },
+    {
+      "source_case_id": 840,
+      "question": "What does the physical examination show?",
+      "answer": "She has been sitting in his bed all day trying to call him but he is not answering her calls."
+    },
+    {
+      "source_case_id": 1124,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "The patient has had a recent cardiac work-up that showed no areas of acute ischemia."
+    },
+    {
+      "source_case_id": 932,
+      "question": "Is there any relevant past medical history?",
+      "answer": "He lives at home with both parents and is up-to-date on all his immunizations."
+    },
+    {
+      "source_case_id": 599,
+      "question": "Does the patient take any medications?",
+      "answer": "Her serum creatinine concentration is 2.7 mg/dL."
+    },
+    {
+      "source_case_id": 56,
+      "question": "Any relevant family history?",
+      "answer": "A 53-year-old man comes to the physician because of a 1-day history of fever and chills, severe malaise, and cough with yellow-green sputum."
+    },
+    {
+      "source_case_id": 333,
+      "question": "What does the physical examination show?",
+      "answer": "Upon presentation, he states his symptoms have mostly improved except for a persistent headache."
+    },
+    {
+      "source_case_id": 753,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "He also feeds poorly and has had a few episodes of vomiting."
+    },
+    {
+      "source_case_id": 688,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A 54-year-old man is newly diagnosed with diabetes."
+    },
+    {
+      "source_case_id": 589,
+      "question": "Does the patient take any medications?",
+      "answer": "His psoriatic arthritis had been well-controlled with adalimumab for several years prior to this."
+    },
+    {
+      "source_case_id": 627,
+      "question": "Any relevant family history?",
+      "answer": "A 20-year-old woman presents to a physician following unprotected coitus with her boyfriend about 10 hours ago."
+    },
+    {
+      "source_case_id": 173,
+      "question": "What does the physical examination show?",
+      "answer": "Test of the stool for occult blood is positive."
+    },
+    {
+      "source_case_id": 91,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 35-year-old taxi driver presents to his physician with complaints of itchy, watery eyes and excessive sneezing that have become more severe with the change of the seasons."
+    },
+    {
+      "source_case_id": 377,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Initial examination shows micrognathia, a broad nasal bridge, short philtrum, and a cleft palate."
+    },
+    {
+      "source_case_id": 1139,
+      "question": "Does the patient take any medications?",
+      "answer": "The gene is composed of 11 exons and depending on the tissue there are different isoforms of the protein being expressed."
+    },
+    {
+      "source_case_id": 531,
+      "question": "Any relevant family history?",
+      "answer": "On physical exam, her abdomen is tender to palpation over the epigastrium, without rebound or guarding."
+    },
+    {
+      "source_case_id": 723,
+      "question": "What does the physical examination show?",
+      "answer": "Laboratory analysis reveals elevated serum T4 and decreased serum TSH."
+    },
+    {
+      "source_case_id": 759,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "His blood pressure is 100/70 mm Hg, pulse is 65/min, and respiratory rate is 6/min."
+    },
+    {
+      "source_case_id": 1220,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Physical examination shows conjunctival pallor."
+    },
+    {
+      "source_case_id": 844,
+      "question": "Does the patient take any medications?",
+      "answer": "Three days after treatment he demonstrates quadriparesis and dysarthria."
+    },
+    {
+      "source_case_id": 1249,
+      "question": "Any relevant family history?",
+      "answer": "He has a past medical history of diabetes, hypertension, and obesity."
+    },
+    {
+      "source_case_id": 805,
+      "question": "What does the physical examination show?",
+      "answer": "Routine physical exam and blood work are normal except for mild hypocalcemia."
+    },
+    {
+      "source_case_id": 444,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "His primary care physician decides to start him on methyldopa."
+    },
+    {
+      "source_case_id": 51,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A 35-year-old female presents to your office for a routine physical."
+    },
+    {
+      "source_case_id": 1197,
+      "question": "Does the patient take any medications?",
+      "answer": "A Wechsler Intelligence Scale for Children (WISC) shows that the boy has a mild intellectual disability with an IQ of 84."
+    },
+    {
+      "source_case_id": 462,
+      "question": "Any relevant family history?",
+      "answer": "The patient is a marine and was deployed to Afghanistan 2 years ago."
+    },
+    {
+      "source_case_id": 30,
+      "question": "What does the physical examination show?",
+      "answer": "The patient\u2019s vital signs include: blood pressure 111/95 mm Hg, temperature 36.7\u00b0C (98.6\u00b0F), pulse 88/min."
+    },
+    {
+      "source_case_id": 463,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Leukocyte count is within normal range."
+    },
+    {
+      "source_case_id": 179,
+      "question": "Is there any relevant past medical history?",
+      "answer": "He is up to date on all vaccines and is meeting all developmental milestones."
+    },
+    {
+      "source_case_id": 181,
+      "question": "Does the patient take any medications?",
+      "answer": "A 5/6 systolic ejection murmur is heard at the left upper sternal border."
+    },
+    {
+      "source_case_id": 261,
+      "question": "Any relevant family history?",
+      "answer": "She has not been to work since yesterday due to her symptoms."
+    },
+    {
+      "source_case_id": 1163,
+      "question": "What does the physical examination show?",
+      "answer": "He appears pale."
+    },
+    {
+      "source_case_id": 1132,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A photograph of the patient's back is shown."
+    },
+    {
+      "source_case_id": 860,
+      "question": "Is there any relevant past medical history?",
+      "answer": "She further describes that he was fed formula and was not breastfed."
+    },
+    {
+      "source_case_id": 976,
+      "question": "Does the patient take any medications?",
+      "answer": "Sudden movement of the patient elicits a sloshing sound on auscultation of the abdomen."
+    },
+    {
+      "source_case_id": 448,
+      "question": "Any relevant family history?",
+      "answer": "The patient is a retired social worker and spends most of his time at home."
+    },
+    {
+      "source_case_id": 726,
+      "question": "What does the physical examination show?",
+      "answer": "Physical exam is unremarkable."
+    },
+    {
+      "source_case_id": 1100,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A previously healthy 16-year-old girl is brought to the physician by her parents because of behavior changes and involuntary limb movements over the past 2 days."
+    },
+    {
+      "source_case_id": 312,
+      "question": "Is there any relevant past medical history?",
+      "answer": "His past medical history is significant for hypercholesterolemia, well managed with rosuvastatin, and hypertension, well managed with hydrochlorothiazide."
+    },
+    {
+      "source_case_id": 19,
+      "question": "Does the patient take any medications?",
+      "answer": "When asked, the patient says that he frequently falls asleep while reading or watching television in the afternoons and feels refreshed after a short nap."
+    },
+    {
+      "source_case_id": 337,
+      "question": "Any relevant family history?",
+      "answer": "A search on the state donor registry shows that she has registered as an organ donor."
+    },
+    {
+      "source_case_id": 602,
+      "question": "What does the physical examination show?",
+      "answer": "She works as a medical office assistant in a local travel medicine clinic."
+    },
+    {
+      "source_case_id": 285,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Surgery is planned and the tumor is removed while trying to preserve a nerve that could be involved."
+    },
+    {
+      "source_case_id": 1136,
+      "question": "Is there any relevant past medical history?",
+      "answer": "The organism does not cause hemolysis on blood agar."
+    },
+    {
+      "source_case_id": 1152,
+      "question": "Does the patient take any medications?",
+      "answer": "Her CBC is significant for Hgb 10.5, WBC 5.8, Plts 250, Hct 33."
+    },
+    {
+      "source_case_id": 516,
+      "question": "Any relevant family history?",
+      "answer": "Past medical history is significant for HIV and hepatitis C, diagnosed 10 years ago for which he is non-compliant with medication."
+    },
+    {
+      "source_case_id": 537,
+      "question": "What does the physical examination show?",
+      "answer": "However, her parents firmly object to the use of corticosteroids in any form, despite being told that the side effects associated with ICS are negligible."
+    },
+    {
+      "source_case_id": 1250,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Compared to the baseline measurements, the serum lactate levels are significantly increased after the sprint."
+    },
+    {
+      "source_case_id": 48,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Examination of his serum shows decreased levels of IgG and CT scan reveals the absence of a thymus."
+    },
+    {
+      "source_case_id": 1262,
+      "question": "Does the patient take any medications?",
+      "answer": "On physical examination, there is absence of a red reflex."
+    },
+    {
+      "source_case_id": 1080,
+      "question": "Any relevant family history?",
+      "answer": "Plain radiographs of the chest show a widened mediastinum and unremarkable lung fields."
+    },
+    {
+      "source_case_id": 897,
+      "question": "What does the physical examination show?",
+      "answer": "The authors of Study X retrospectively reviewed patients' reported coffee consumption and found that drinking greater than 6 cups of coffee per day was associated with an increased risk of developing lung cancer."
+    },
+    {
+      "source_case_id": 529,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "He immigrated to the United States from Ghana 20 years ago."
+    },
+    {
+      "source_case_id": 785,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Physical examination shows calluses on the knuckles of her right hand."
+    },
+    {
+      "source_case_id": 390,
+      "question": "Does the patient take any medications?",
+      "answer": "He has also been waking up at night frequently, which he attributes to sweating while asleep."
+    },
+    {
+      "source_case_id": 741,
+      "question": "Any relevant family history?",
+      "answer": "Neurologic examination is normal."
+    },
+    {
+      "source_case_id": 7,
+      "question": "What does the physical examination show?",
+      "answer": "Physical exam is notable for dry and flushed skin and a confused man."
+    },
+    {
+      "source_case_id": 313,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A review of symptoms was negative."
+    },
+    {
+      "source_case_id": 894,
+      "question": "Is there any relevant past medical history?",
+      "answer": "On examination, the physician notes a maculopapular rash as shown in the image below."
+    },
+    {
+      "source_case_id": 890,
+      "question": "Does the patient take any medications?",
+      "answer": "A 27-year-old man comes to the physician because of a 1-week history of fever and pain with urination."
+    },
+    {
+      "source_case_id": 1111,
+      "question": "Any relevant family history?",
+      "answer": "An S3 gallop is heard on auscultation."
+    },
+    {
+      "source_case_id": 177,
+      "question": "What does the physical examination show?",
+      "answer": "Instead, for the past 10 days, she has been taking her roommate\u2019s antidepressant medication instead."
+    },
+    {
+      "source_case_id": 1004,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Thyroid function tests and an MRI of the head are both within normal limits."
+    },
+    {
+      "source_case_id": 861,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Her symptoms are taking a toll on her quality of life."
+    },
+    {
+      "source_case_id": 167,
+      "question": "Does the patient take any medications?",
+      "answer": "He was found on the ground by his daughter earlier today, and he was last known to be without neurological deficits two hours prior to presentation."
+    },
+    {
+      "source_case_id": 233,
+      "question": "Any relevant family history?",
+      "answer": "Neurologic examination shows muscle spasms in the arms and jaw."
+    },
+    {
+      "source_case_id": 1199,
+      "question": "What does the physical examination show?",
+      "answer": "A 45-year-old man who underwent liver transplantation 3 months ago for chronic liver failure presents to the physician because of a backache following a fall from sitting."
+    },
+    {
+      "source_case_id": 465,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "His symptoms onset 2 days ago and have not improved."
+    },
+    {
+      "source_case_id": 433,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Examination shows scleral icterus and scars on both cubital fossae."
+    },
+    {
+      "source_case_id": 184,
+      "question": "Does the patient take any medications?",
+      "answer": "A correlation is established between the drug and the development of impaired glucose tolerance."
+    },
+    {
+      "source_case_id": 1234,
+      "question": "Any relevant family history?",
+      "answer": "A 45-year-old man presents to the outpatient unit with a complaint of lower extremity edema for the past few weeks."
+    },
+    {
+      "source_case_id": 493,
+      "question": "What does the physical examination show?",
+      "answer": "A CT scan of the abdomen is within normal limits."
+    },
+    {
+      "source_case_id": 515,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 55-year-old gentleman has been working in a sand blasting factory for over 25 years."
+    },
+    {
+      "source_case_id": 980,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Four hours later, she states that the pain has abated."
+    },
+    {
+      "source_case_id": 330,
+      "question": "Does the patient take any medications?",
+      "answer": "Vital signs are T 98.6, HR 120, RR 17, and BP 85/50."
+    },
+    {
+      "source_case_id": 171,
+      "question": "Any relevant family history?",
+      "answer": "A 53-year-old man is brought to the emergency department by his wife after the sudden onset of dizziness, nausea, and left-sided weakness."
+    },
+    {
+      "source_case_id": 37,
+      "question": "What does the physical examination show?",
+      "answer": "A physical examination is performed and is within normal limits."
+    },
+    {
+      "source_case_id": 1040,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Each episode lasts less than a minute and usually occurs when she gets out of bed in the morning or suddenly turns her head."
+    },
+    {
+      "source_case_id": 852,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Two weeks later, she reports no improvement in symptoms."
+    },
+    {
+      "source_case_id": 878,
+      "question": "Does the patient take any medications?",
+      "answer": "On physical examination, swelling and erythema of the right hemiscrotal sac are evident, accompanied by intense tenderness with palpation of an indurated epididymis."
+    },
+    {
+      "source_case_id": 352,
+      "question": "Any relevant family history?",
+      "answer": "A research group has developed a new screening test for HIV that can detect infection 2 weeks earlier than the current gold standard."
+    },
+    {
+      "source_case_id": 651,
+      "question": "What does the physical examination show?",
+      "answer": "His wife reports that the patient had been complaining of chest pain for the last few hours but refused to go to the hospital."
+    },
+    {
+      "source_case_id": 928,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "She says she ran to the room to find that the patient had pulled down a container of hot water on himself."
+    },
+    {
+      "source_case_id": 1059,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Her past medical history is significant for allergies and asthma as a child, but she is not currently taking any medications or supplements."
+    },
+    {
+      "source_case_id": 1007,
+      "question": "Does the patient take any medications?",
+      "answer": "The night before, the condom broke during intercourse."
+    },
+    {
+      "source_case_id": 1001,
+      "question": "Any relevant family history?",
+      "answer": "The urinalysis show hematuria."
+    },
+    {
+      "source_case_id": 592,
+      "question": "What does the physical examination show?",
+      "answer": "The vital signs include: temperature 38.8\u00b0C (102.0\u00b0F), respirations 24/min, pulse 110/min, and blood pressure 100/90 mm Hg."
+    },
+    {
+      "source_case_id": 380,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 61-year-old woman presents to your office complaining of mild fatigue and weight loss over the past 6 months."
+    },
+    {
+      "source_case_id": 499,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Culture of the lesions reveals gram-positive cocci in clusters."
+    },
+    {
+      "source_case_id": 1054,
+      "question": "Does the patient take any medications?",
+      "answer": "The physical examination reveals severely ataxic gait, nystagmus, absent deep tendon reflexes, and loss of vibration and proprioception."
+    },
+    {
+      "source_case_id": 139,
+      "question": "Any relevant family history?",
+      "answer": "Bowel sounds are decreased."
+    },
+    {
+      "source_case_id": 622,
+      "question": "What does the physical examination show?",
+      "answer": "During his hospital stay he develops abdominal pain and bloody diarrhea, and has a WBC of 14,000; serum creatinine is 0.9 mg/dL."
+    },
+    {
+      "source_case_id": 103,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "He examines the patient\u2019s eye and finds that the eye drops have produced their expected effects."
+    },
+    {
+      "source_case_id": 249,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A peripheral blood smear shows reduced platelets with normal morphology."
+    },
+    {
+      "source_case_id": 1215,
+      "question": "Does the patient take any medications?",
+      "answer": "Examination shows cold extremities."
+    },
+    {
+      "source_case_id": 734,
+      "question": "Any relevant family history?",
+      "answer": "A previously healthy 38-year-old man comes to the emergency department for evaluation of several hours of severe, right-sided, colicky flank pain that radiates to the groin."
+    },
+    {
+      "source_case_id": 730,
+      "question": "What does the physical examination show?",
+      "answer": "Right Achilles and patellar reflexes are 1+ on the right and 2+ on the left."
+    },
+    {
+      "source_case_id": 1030,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 28-year-old man who was involved in a motorcycle accident presents to the nearest trauma center to get his wounds treated."
+    },
+    {
+      "source_case_id": 1092,
+      "question": "Is there any relevant past medical history?",
+      "answer": "His blood pressure is 134/89 mm Hg and heart rate is 75/min."
+    },
+    {
+      "source_case_id": 891,
+      "question": "Does the patient take any medications?",
+      "answer": "He is diaphoretic."
+    },
+    {
+      "source_case_id": 226,
+      "question": "Any relevant family history?",
+      "answer": "He cries out in fear reporting voices whispering in his room and strange shadows passing over the walls."
+    },
+    {
+      "source_case_id": 250,
+      "question": "What does the physical examination show?",
+      "answer": "The problem has only been getting worse since then; she's even started pulling out clumps of hair when she shampoos in the morning."
+    },
+    {
+      "source_case_id": 1164,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Her personal history is relevant for various visits to the general practitioners for similar complaints that resulted in multiple antimicrobial treatments for urinary tract infection."
+    },
+    {
+      "source_case_id": 347,
+      "question": "Is there any relevant past medical history?",
+      "answer": "There is a grade 2/6 mid-diastolic murmur along the lower left sternal border."
+    },
+    {
+      "source_case_id": 618,
+      "question": "Does the patient take any medications?",
+      "answer": "The mass feels loosely attached to the right testicle and is firm, and not painful."
+    },
+    {
+      "source_case_id": 1033,
+      "question": "Any relevant family history?",
+      "answer": "Physical examination shows bilateral cervical lymphadenopathy."
+    },
+    {
+      "source_case_id": 1015,
+      "question": "What does the physical examination show?",
+      "answer": "He says that the chest pain began a few hours prior to presentation and is associated with nausea, abdominal discomfort, and sweating."
+    },
+    {
+      "source_case_id": 484,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "He says that he feels great and has not seen a physician for approximately 10 years."
+    },
+    {
+      "source_case_id": 25,
+      "question": "Is there any relevant past medical history?",
+      "answer": "On physical examination, there is diffuse abdominal distension and tenderness, and bowel sounds are faint."
+    },
+    {
+      "source_case_id": 846,
+      "question": "Does the patient take any medications?",
+      "answer": "She states that both she and her husband have family histories of sickle cell disease."
+    },
+    {
+      "source_case_id": 407,
+      "question": "Any relevant family history?",
+      "answer": "Neurologic examination shows no focal findings."
+    },
+    {
+      "source_case_id": 378,
+      "question": "What does the physical examination show?",
+      "answer": "She has no personal history of serious illness."
+    },
+    {
+      "source_case_id": 571,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 56-year-old man presents with severe back pain for the past hour."
+    },
+    {
+      "source_case_id": 36,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A 12-month-old girl is brought to the physician because she is unable to sit and has not learned how to crawl."
+    },
+    {
+      "source_case_id": 331,
+      "question": "Does the patient take any medications?",
+      "answer": "She has no family history of early MI."
+    },
+    {
+      "source_case_id": 60,
+      "question": "Any relevant family history?",
+      "answer": "A 62-year-old male presents to his primary care physician complaining of an unintended 10-pound weight loss over the last 4 months."
+    },
+    {
+      "source_case_id": 708,
+      "question": "What does the physical examination show?",
+      "answer": "Examination shows cool extremities, jugular venous distention, and diffuse crackles in the lungs."
+    },
+    {
+      "source_case_id": 381,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "His temperature is 97.6\u00b0F (36.4\u00b0C), blood pressure is 104/64 mmHg, pulse is 130/min, respirations are 19/min, and oxygen saturation is 98% on room air."
+    },
+    {
+      "source_case_id": 854,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A researcher is interested in studying the role of immunosurveillance in the pathogenesis of this lung cancer."
+    },
+    {
+      "source_case_id": 678,
+      "question": "Does the patient take any medications?",
+      "answer": "Pulmonary examination shows bilateral rales."
+    },
+    {
+      "source_case_id": 87,
+      "question": "Any relevant family history?",
+      "answer": "A group of researchers is conducting a prospective study to examine if dietary fiber intake is protective against coronary heart disease."
+    },
+    {
+      "source_case_id": 132,
+      "question": "What does the physical examination show?",
+      "answer": "He follows a vegan diet and does not eat meat, eggs, or dairy."
+    },
+    {
+      "source_case_id": 593,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "The mushrooms in the soup had been picked from his family's backyard, and samples of mushrooms were sent to the lab for analysis."
+    },
+    {
+      "source_case_id": 111,
+      "question": "Is there any relevant past medical history?",
+      "answer": "The physician notes a marked improvement, but is concerned about a common complication of chemotherapy."
+    },
+    {
+      "source_case_id": 1082,
+      "question": "Does the patient take any medications?",
+      "answer": "AST and ALT levels are approximately 2500 U/L."
+    },
+    {
+      "source_case_id": 1173,
+      "question": "Any relevant family history?",
+      "answer": "While talking to her co-workers, she ardently raises complaints about her supervisor and declares that she finds him to be extremely repulsive, rude, and arrogant."
+    },
+    {
+      "source_case_id": 1147,
+      "question": "What does the physical examination show?",
+      "answer": "A 65-year-old man with chronic obstructive pulmonary disease is admitted to the hospital for the treatment of worsening shortness of breath and productive cough."
+    },
+    {
+      "source_case_id": 228,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "The fingers become white when exposed to cold weather, then severely painful and numb once they warm up."
+    },
+    {
+      "source_case_id": 72,
+      "question": "Is there any relevant past medical history?",
+      "answer": "He says the pain has rendered him unable to report to work for the last 2 weeks."
+    },
+    {
+      "source_case_id": 831,
+      "question": "Does the patient take any medications?",
+      "answer": "80 cm (31.4 in) from the entry site."
+    },
+    {
+      "source_case_id": 1193,
+      "question": "Any relevant family history?",
+      "answer": "She is 165 cm (5 ft 5 in) tall and weighs 84 kg (187 lb); BMI is 30.9 kg/m2."
+    },
+    {
+      "source_case_id": 168,
+      "question": "What does the physical examination show?",
+      "answer": "To initiate labor induction, the obstetrician injects the patient with a hormone that is endogenously made in the hypothalamus and released by the posterior pituitary."
+    },
+    {
+      "source_case_id": 457,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "The patient appears uncomfortable."
+    },
+    {
+      "source_case_id": 777,
+      "question": "Is there any relevant past medical history?",
+      "answer": "When she gave him the medication yesterday, the patient had 3 episodes of vomiting and his condition rapidly worsened."
+    },
+    {
+      "source_case_id": 21,
+      "question": "Does the patient take any medications?",
+      "answer": "An ECG shows ST elevation in I, aVL, and V2\u2013V4."
+    },
+    {
+      "source_case_id": 189,
+      "question": "Any relevant family history?",
+      "answer": "Physical examination shows a blanching erythematous rash and petechiae over both ankles and the soles of her feet."
+    },
+    {
+      "source_case_id": 1076,
+      "question": "What does the physical examination show?",
+      "answer": "Although previously a top student at her college, she did not register for classes this term, because she does not feel like going to school anymore."
+    },
+    {
+      "source_case_id": 18,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "His past medical history is also notable for diabetes mellitus and obesity."
+    },
+    {
+      "source_case_id": 32,
+      "question": "Is there any relevant past medical history?",
+      "answer": "An ECG shows diffuse ST elevations."
+    },
+    {
+      "source_case_id": 711,
+      "question": "Does the patient take any medications?",
+      "answer": "He is being breastfed exclusively and has 3\u20134 wet diapers a day."
+    },
+    {
+      "source_case_id": 414,
+      "question": "Any relevant family history?",
+      "answer": "His vital signs are within normal limits."
+    },
+    {
+      "source_case_id": 550,
+      "question": "What does the physical examination show?",
+      "answer": "The blood pressure is 120/80 mm Hg, the heart rate is 67/min, the respiratory rate is 14/min, and the temperature is 36.8\u2103 (98.2\u2109)."
+    },
+    {
+      "source_case_id": 1259,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 4-year-old boy is brought to the physician by his mother because of a rash on his hands and feet for the past two weeks."
+    },
+    {
+      "source_case_id": 299,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Laboratory tests are presented below: | Hemoglobin: 11.0 g/dL | Hematocrit: 40.5% | Leukocyte count: 7400/mm3 | Mean corpuscular volume: 80.1 \u03bcm3 | Platelet count: 210,000/mm3 | Erythrocyte sedimentation rate: 55 mm/h | Anti-cyclic citrullinated peptide antibody: 45 (Normal reference values: < 20) | ."
+    },
+    {
+      "source_case_id": 442,
+      "question": "Does the patient take any medications?",
+      "answer": "Testicular ultrasound shows increased blood flow to the left testicle when compared to the right and an enlarged left epididymis with decreased echogenicity."
+    },
+    {
+      "source_case_id": 574,
+      "question": "Any relevant family history?",
+      "answer": "Now, she is unable to feed herself and has recently started to point to objects she wants rather than asking."
+    },
+    {
+      "source_case_id": 732,
+      "question": "What does the physical examination show?",
+      "answer": "Her current medications include fluoxetine."
+    },
+    {
+      "source_case_id": 271,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Physical exam reveals a thin, pale boy with decreased color under his eyelids."
+    },
+    {
+      "source_case_id": 1225,
+      "question": "Is there any relevant past medical history?",
+      "answer": "She has a medical history of hypertension for which she takes lisinopril."
+    },
+    {
+      "source_case_id": 532,
+      "question": "Does the patient take any medications?",
+      "answer": "Specifically, she says that an area on her right thigh has been feeling tender and swollen over the past few weeks."
+    },
+    {
+      "source_case_id": 386,
+      "question": "Any relevant family history?",
+      "answer": "The patient is in mild distress and holds his arm against his abdomen."
+    },
+    {
+      "source_case_id": 1013,
+      "question": "What does the physical examination show?",
+      "answer": "She has gained 18-kg (40-lb) since the birth of her son 6 years ago."
+    },
+    {
+      "source_case_id": 632,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "After some time being on this medication, the patient complains of a bad cough."
+    },
+    {
+      "source_case_id": 309,
+      "question": "Is there any relevant past medical history?",
+      "answer": "The rectovaginal exam revealed no masses."
+    },
+    {
+      "source_case_id": 807,
+      "question": "Does the patient take any medications?",
+      "answer": "Current medications include methyldopa and a multivitamin."
+    },
+    {
+      "source_case_id": 252,
+      "question": "Any relevant family history?",
+      "answer": "He was diagnosed with a genetic disorder during infancy."
+    },
+    {
+      "source_case_id": 1060,
+      "question": "What does the physical examination show?",
+      "answer": "The patient is otherwise healthy, and her vitals are within normal limits."
+    },
+    {
+      "source_case_id": 1095,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "He has recovered well from the procedure until this morning, when he began to develop jaundiced skin and sclerae."
+    },
+    {
+      "source_case_id": 918,
+      "question": "Is there any relevant past medical history?",
+      "answer": "He states that he has not been able to afford his highly active antiretroviral therapy, so he is not currently taking any medications."
+    },
+    {
+      "source_case_id": 1251,
+      "question": "Does the patient take any medications?",
+      "answer": "Later in the experiment, the scientist cannot find any marked cells in the peripheral blood."
+    },
+    {
+      "source_case_id": 157,
+      "question": "Any relevant family history?",
+      "answer": "The patient states that for the past 4 days he has experienced abdominal pain, diarrhea, weakness and a subjective fever."
+    },
+    {
+      "source_case_id": 958,
+      "question": "What does the physical examination show?",
+      "answer": "He has occasional dry coughing and back pain."
+    },
+    {
+      "source_case_id": 479,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "He is currently on omeprazole for his acid reflux; however, his heartburn still persists."
+    },
+    {
+      "source_case_id": 905,
+      "question": "Is there any relevant past medical history?",
+      "answer": "His speech is dysarthric."
+    },
+    {
+      "source_case_id": 106,
+      "question": "Does the patient take any medications?",
+      "answer": "The next day, he developed soreness in his lower back and spent the whole day online trying to figure out what was wrong with him."
+    },
+    {
+      "source_case_id": 617,
+      "question": "Any relevant family history?",
+      "answer": "Her blood pressure is 80/52 mm Hg; heart rate, 122/min; and respiratory rate, 22/min."
+    },
+    {
+      "source_case_id": 692,
+      "question": "What does the physical examination show?",
+      "answer": "Her last multiple sclerosis flare was approximately 7 years ago and presented with paresthesias and weakness of the upper extremities."
+    },
+    {
+      "source_case_id": 973,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "You suspect primary hyperparathyroidism."
+    },
+    {
+      "source_case_id": 402,
+      "question": "Is there any relevant past medical history?",
+      "answer": "PCR allows for amplification of a single piece of genetic material to produce trillions of idential copies."
+    },
+    {
+      "source_case_id": 968,
+      "question": "Does the patient take any medications?",
+      "answer": "A 55-year-old man presents to his primary care provider complaining of blood clots in his urine."
+    },
+    {
+      "source_case_id": 1096,
+      "question": "Any relevant family history?",
+      "answer": "X-rays of the chest are shown."
+    },
+    {
+      "source_case_id": 813,
+      "question": "What does the physical examination show?",
+      "answer": "She undergoes subsequent testing, and is found to have anti-citrullinated protein antibodies."
+    },
+    {
+      "source_case_id": 174,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "She was recently trialed on nifedipine but stopped due to severe lower extremity edema."
+    },
+    {
+      "source_case_id": 1079,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A 21-year-old male comes to the physician\u2019s office with complaints of fatigue."
+    },
+    {
+      "source_case_id": 1032,
+      "question": "Does the patient take any medications?",
+      "answer": "Her vital signs are: temperature 36.5\u00b0C (97.7\u00b0F), heart rate 78/min, respiratory rate 15/min."
+    },
+    {
+      "source_case_id": 991,
+      "question": "Any relevant family history?",
+      "answer": "Physical examination shows a shallow, firm ulcer with a smooth base along the shaft of the penis and nontender bilateral inguinal adenopathy."
+    },
+    {
+      "source_case_id": 635,
+      "question": "What does the physical examination show?",
+      "answer": "A 23-year-old man presents with severe right lower quadrant abdominal pain for the past 2 hours."
+    },
+    {
+      "source_case_id": 1028,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "The right knee joint is warm and erythematous."
+    },
+    {
+      "source_case_id": 52,
+      "question": "Is there any relevant past medical history?",
+      "answer": "His parents report that he did not walk until he was 18 months old."
+    },
+    {
+      "source_case_id": 397,
+      "question": "Does the patient take any medications?",
+      "answer": "A scientist isolates the rough endoplasmic reticulum from HeLa cells."
+    },
+    {
+      "source_case_id": 760,
+      "question": "Any relevant family history?",
+      "answer": "After an extensive workup, the physician recommends pulsatile GnRH therapy."
+    },
+    {
+      "source_case_id": 1094,
+      "question": "What does the physical examination show?",
+      "answer": "Physical exam is notable only for the patient being able to recall 1 of 3 objects."
+    },
+    {
+      "source_case_id": 1037,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "As his condition worsened despite antibiotic therapy at home, he was admitted for intravenous antibiotics and observation."
+    },
+    {
+      "source_case_id": 1026,
+      "question": "Is there any relevant past medical history?",
+      "answer": "On exam, the patient's right knee appears larger than his left knee with a small effusion."
+    },
+    {
+      "source_case_id": 55,
+      "question": "Does the patient take any medications?",
+      "answer": "She describes episodes with similar symptoms in the past after a fatty meal but were less severe."
+    },
+    {
+      "source_case_id": 787,
+      "question": "Any relevant family history?",
+      "answer": "Examination in the delivery room shows that he is at the 2nd percentile for head circumference and at the 10th percentile for length."
+    },
+    {
+      "source_case_id": 33,
+      "question": "What does the physical examination show?",
+      "answer": "A synovial fluid aspiration of the knee is performed and reveals a white blood cell count of 51,000/\u00b5L."
+    },
+    {
+      "source_case_id": 868,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A healthy 32-year-old woman enrolls in a study investigating kidney function."
+    },
+    {
+      "source_case_id": 638,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A histologic section is obtained from the central canal of the spinal cord."
+    },
+    {
+      "source_case_id": 1258,
+      "question": "Does the patient take any medications?",
+      "answer": "Her mother died of complications from diabetes."
+    },
+    {
+      "source_case_id": 562,
+      "question": "Any relevant family history?",
+      "answer": "His designated medical power of attorney, who had previously signed the surgery consent forms, is present."
+    },
+    {
+      "source_case_id": 136,
+      "question": "What does the physical examination show?",
+      "answer": "An 18-year-old male presents to the emergency room smelling quite heavily of alcohol and is unconscious."
+    },
+    {
+      "source_case_id": 714,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "The complex is found to have a high binding affinity to the gp120 protein, irreversibly inhibiting its function and reducing CD4 T cell infection."
+    },
+    {
+      "source_case_id": 699,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Her hemoglobin A1c concentration is 8%."
+    },
+    {
+      "source_case_id": 722,
+      "question": "Does the patient take any medications?",
+      "answer": "He recently got expelled from school for fist fighting."
+    },
+    {
+      "source_case_id": 495,
+      "question": "Any relevant family history?",
+      "answer": "A 3-week-old male infant is brought to the physician by his parents because they noticed that his head has been tilted to the left since birth."
+    },
+    {
+      "source_case_id": 1201,
+      "question": "What does the physical examination show?",
+      "answer": "Over the course of several years, the team manages to obtain the blood levels of a random sample of 10,000 volunteers who fit their inclusion criteria."
+    },
+    {
+      "source_case_id": 848,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "After delivery, he regularly records the height and weight of the cohort's children."
+    },
+    {
+      "source_case_id": 1230,
+      "question": "Is there any relevant past medical history?",
+      "answer": "On physical examination, his vital signs are stable, but on cardiac auscultation, you detect a crescendo-decrescendo systolic murmur loudest on the right upper sternal border radiating to the neck."
+    },
+    {
+      "source_case_id": 833,
+      "question": "Does the patient take any medications?",
+      "answer": "There is bilateral calf enlargement."
+    },
+    {
+      "source_case_id": 754,
+      "question": "Any relevant family history?",
+      "answer": "The pain is constant and nagging but intensifies with lateral movement."
+    },
+    {
+      "source_case_id": 273,
+      "question": "What does the physical examination show?",
+      "answer": "He was not confused after this episode."
+    },
+    {
+      "source_case_id": 1149,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "The rash appeared under the patient\u2019s breasts as well as in the abdominal folds, and the patient describes it as being very itchy."
+    },
+    {
+      "source_case_id": 172,
+      "question": "Is there any relevant past medical history?",
+      "answer": "The patient demonstrates reduced FEV1 and FVC upon spirometry."
+    },
+    {
+      "source_case_id": 466,
+      "question": "Does the patient take any medications?",
+      "answer": "In addition, she describes 3 episodes where it felt like her heart was \"pounding out of her chest.\" Her temperature is 99.3\u00b0F (37.4\u00b0C), pulse is 106/min and regular, blood pressure is 141/80 mmHg, and respirations are 18/min."
+    },
+    {
+      "source_case_id": 768,
+      "question": "Any relevant family history?",
+      "answer": "The patient has a past medical history of alcohol abuse and schizophrenia that is well controlled with haloperidol."
+    },
+    {
+      "source_case_id": 539,
+      "question": "What does the physical examination show?",
+      "answer": "He missed his previous follow-up visit."
+    },
+    {
+      "source_case_id": 883,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Examination shows bilateral parotid gland enlargement."
+    },
+    {
+      "source_case_id": 120,
+      "question": "Is there any relevant past medical history?",
+      "answer": "On mental status examination, he has a flat affect and his speech is disorganized."
+    },
+    {
+      "source_case_id": 63,
+      "question": "Does the patient take any medications?",
+      "answer": "The patient appears distressed."
+    },
+    {
+      "source_case_id": 564,
+      "question": "Any relevant family history?",
+      "answer": "His vitals are a blood pressure of 122/78 mm Hg, temperature of 37.0\u00b0C (98.6\u00b0F), pulse rate of 88/min, and respiratory rate of 14/min."
+    },
+    {
+      "source_case_id": 1120,
+      "question": "What does the physical examination show?",
+      "answer": "She has recently immigrated to the United States and was previously diagnosed with diabetes mellitus, hypertension, and osteoarthritis but no medical records are currently available."
+    },
+    {
+      "source_case_id": 6,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "She appears thin and has bilateral temporal wasting."
+    },
+    {
+      "source_case_id": 235,
+      "question": "Is there any relevant past medical history?",
+      "answer": "She has a history of type 2 diabetes, for which she has been receiving medication for the past 15 years."
+    },
+    {
+      "source_case_id": 1043,
+      "question": "Does the patient take any medications?",
+      "answer": "The patient has an unremarkable past medical history and has been followed by a pediatrician."
+    },
+    {
+      "source_case_id": 762,
+      "question": "Any relevant family history?",
+      "answer": "He is up to date on all vaccines and has met most of developmental milestones."
+    },
+    {
+      "source_case_id": 770,
+      "question": "What does the physical examination show?",
+      "answer": "He also claims that at times he struggles to fall asleep, and sometimes he feels he lacks energy."
+    },
+    {
+      "source_case_id": 1071,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "He has type 2 diabetes mellitus and has smoked 1 pack of cigarettes daily for 45 years."
+    },
+    {
+      "source_case_id": 142,
+      "question": "Is there any relevant past medical history?",
+      "answer": "She has urinated frequently over the past week and has become excessively thirsty during this time."
+    },
+    {
+      "source_case_id": 207,
+      "question": "Does the patient take any medications?",
+      "answer": "Her serum sodium concentration is 153 mEq/L and serum glucose concentration is 92 mg/dL."
+    },
+    {
+      "source_case_id": 490,
+      "question": "Any relevant family history?",
+      "answer": "A previously healthy 2-month-old boy is brought to the physician because of a 10-day history of poor feeding."
+    },
+    {
+      "source_case_id": 310,
+      "question": "What does the physical examination show?",
+      "answer": "His temperature is 37.2\u00b0C (98.9\u00b0F), pulse is 100/min and regular, respirations are 20/min, and blood pressure is 100/65 mm Hg."
+    },
+    {
+      "source_case_id": 450,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 4-month-old male presents to the emergency department with severe cough, wheezing, and cyanosis."
+    },
+    {
+      "source_case_id": 748,
+      "question": "Is there any relevant past medical history?",
+      "answer": "She says that she does not smoke or drink alcohol."
+    },
+    {
+      "source_case_id": 121,
+      "question": "Does the patient take any medications?",
+      "answer": "When confronted, the anesthesiologist admits that he began abusing the medication the previous year, after his divorce was finalized."
+    },
+    {
+      "source_case_id": 215,
+      "question": "Any relevant family history?",
+      "answer": "She is accompanied by her daughter, who notes that her mother hasn\u2019t been able to look at her since the previous day."
+    },
+    {
+      "source_case_id": 345,
+      "question": "What does the physical examination show?",
+      "answer": "Last week, he suddenly \u201clost control\u201d of his legs and neck for about 30 seconds after his classmate had told him a joke."
+    },
+    {
+      "source_case_id": 967,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "In obtaining informed consent, the patient\u2019s doctor has described all the available options for the procedure with their pros and cons, has offered different materials for the hernioplasty, and described the exact procedure."
+    },
+    {
+      "source_case_id": 1115,
+      "question": "Is there any relevant past medical history?",
+      "answer": "She has red cheeks with circumoral pallor and no other skin findings."
+    },
+    {
+      "source_case_id": 1129,
+      "question": "Does the patient take any medications?",
+      "answer": "She is a 10 pack-year smoker and consumes alcohol regularly."
+    },
+    {
+      "source_case_id": 561,
+      "question": "Any relevant family history?",
+      "answer": "A 53-year-old man presents to the office complaining of persistent abdominal pain."
+    },
+    {
+      "source_case_id": 758,
+      "question": "What does the physical examination show?",
+      "answer": "A physical examination revealed epigastric tenderness on palpation and the abdomen was distended."
+    },
+    {
+      "source_case_id": 993,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Food then enters the stomach, where gastric acid and pepsin initiate protein digestion."
+    },
+    {
+      "source_case_id": 304,
+      "question": "Is there any relevant past medical history?",
+      "answer": "On physical exam, he appears distressed."
+    },
+    {
+      "source_case_id": 1177,
+      "question": "Does the patient take any medications?",
+      "answer": "A 61-year-old woman presents with painless vaginal bleeding."
+    },
+    {
+      "source_case_id": 554,
+      "question": "Any relevant family history?",
+      "answer": "Examination of the heart during autopsy shows hypertrophy of the left ventricular wall and enlargement of the left ventricular chamber."
+    },
+    {
+      "source_case_id": 960,
+      "question": "What does the physical examination show?",
+      "answer": "Auscultation of the lungs reveals bilateral crepitations and a friction rub."
+    },
+    {
+      "source_case_id": 1192,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Some are healing and some are fresh."
+    },
+    {
+      "source_case_id": 1025,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A 15-month-old boy is brought to his pediatrician by his mother with a swollen and painful right elbow."
+    },
+    {
+      "source_case_id": 75,
+      "question": "Does the patient take any medications?",
+      "answer": "The physical examination reveals distended jugular veins, bilateral pitting edema of the lower limbs, and fine crackles at the base of the lungs."
+    },
+    {
+      "source_case_id": 566,
+      "question": "Any relevant family history?",
+      "answer": "His temperature is 38.5\u00b0C (100.5\u00b0F), pulse is 120/min, respirations are 33/min, blood pressure is 101/54 mm Hg, and oxygen saturation is 96% on room air."
+    },
+    {
+      "source_case_id": 631,
+      "question": "What does the physical examination show?",
+      "answer": "He has had no overseas or mountainous trips over the past year."
+    },
+    {
+      "source_case_id": 398,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 14-month-old girl is brought to the pediatrician after her parents noticed her being increasingly irritable with frequent vomiting for the past 2 weeks."
+    },
+    {
+      "source_case_id": 436,
+      "question": "Is there any relevant past medical history?",
+      "answer": "The pain does not radiate and is constant."
+    },
+    {
+      "source_case_id": 403,
+      "question": "Does the patient take any medications?",
+      "answer": "An investigator is studying the efficacy of antiviral drugs in infected human cells."
+    },
+    {
+      "source_case_id": 982,
+      "question": "Any relevant family history?",
+      "answer": "A 50-year-old man comes to the emergency department because of severe lower chest pain for the past hour."
+    },
+    {
+      "source_case_id": 859,
+      "question": "What does the physical examination show?",
+      "answer": "She also reports a burning sensation in her chest when she lies down at night after dinner."
+    },
+    {
+      "source_case_id": 642,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "There is severe ear pain when the right auricle is pulled superiorly."
+    },
+    {
+      "source_case_id": 426,
+      "question": "Is there any relevant past medical history?",
+      "answer": "She was born at term and has been healthy since."
+    },
+    {
+      "source_case_id": 534,
+      "question": "Does the patient take any medications?",
+      "answer": "She is currently taking no medications, doesn\u2019t smoke, and drinks alcohol socially."
+    },
+    {
+      "source_case_id": 921,
+      "question": "Any relevant family history?",
+      "answer": "His history is significant for radiation exposure for treating his neuroblastoma at the age of 15."
+    },
+    {
+      "source_case_id": 348,
+      "question": "What does the physical examination show?",
+      "answer": "While trying to escape, he was stabbed once in the neck."
+    },
+    {
+      "source_case_id": 511,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "His vital signs are within normal limits."
+    },
+    {
+      "source_case_id": 1179,
+      "question": "Is there any relevant past medical history?",
+      "answer": "An endoscopy with small bowel biopsy is performed."
+    },
+    {
+      "source_case_id": 49,
+      "question": "Does the patient take any medications?",
+      "answer": "Her pulse is 89/min and blood pressure is 117/92 mm Hg."
+    },
+    {
+      "source_case_id": 587,
+      "question": "Any relevant family history?",
+      "answer": "He just returned from an extensive hiking trip in Colorado."
+    },
+    {
+      "source_case_id": 747,
+      "question": "What does the physical examination show?",
+      "answer": "A photograph of his right hand is shown."
+    },
+    {
+      "source_case_id": 774,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "He does not smoke cigarettes."
+    },
+    {
+      "source_case_id": 432,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Culture on Sabouraud agar reveals sclerotic bodies."
+    },
+    {
+      "source_case_id": 1010,
+      "question": "Does the patient take any medications?",
+      "answer": "The remainder of the examination shows no abnormalities."
+    },
+    {
+      "source_case_id": 294,
+      "question": "Any relevant family history?",
+      "answer": "It is affecting her wrists, elbows, and shoulders."
+    },
+    {
+      "source_case_id": 159,
+      "question": "What does the physical examination show?",
+      "answer": "She therefore decides to pretreat these animals with a drug that is known to prevent this decrease in heart rate."
+    },
+    {
+      "source_case_id": 811,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Review of systems is negative except for cold intolerance and constipation."
+    },
+    {
+      "source_case_id": 548,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A young researcher wants to develop a method of increasing oxygen delivery to the peripheral tissues."
+    },
+    {
+      "source_case_id": 869,
+      "question": "Does the patient take any medications?",
+      "answer": "Examination shows a 2/6 continuous, low-pitched murmur over the left upper sternal border that radiates towards the neck."
+    },
+    {
+      "source_case_id": 819,
+      "question": "Any relevant family history?",
+      "answer": "His spleen is palpable 5 cm below the costal margin."
+    },
+    {
+      "source_case_id": 1034,
+      "question": "What does the physical examination show?",
+      "answer": "She notes no paresthesias, fever, or fatigue."
+    },
+    {
+      "source_case_id": 218,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 26-year-old woman comes to the physician for a follow-up examination 1 week after undergoing rotator cuff repair surgery."
+    },
+    {
+      "source_case_id": 262,
+      "question": "Is there any relevant past medical history?",
+      "answer": "The baby cries with passive movement of the arm."
+    },
+    {
+      "source_case_id": 611,
+      "question": "Does the patient take any medications?",
+      "answer": "She follows a strict vegetarian diet."
+    },
+    {
+      "source_case_id": 792,
+      "question": "Any relevant family history?",
+      "answer": "He has a past medical history of stroke and his current medications include warfarin."
+    },
+    {
+      "source_case_id": 794,
+      "question": "What does the physical examination show?",
+      "answer": "He drinks one alcoholic beverage daily."
+    },
+    {
+      "source_case_id": 8,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "The only change he can remember is that after having a poor harvest last year, he and his family have been subsisting on white rice."
+    },
+    {
+      "source_case_id": 204,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Current medications are an estrogen-containing oral contraceptive and a multivitamin."
+    },
+    {
+      "source_case_id": 307,
+      "question": "Does the patient take any medications?",
+      "answer": "The trial will be evaluating the effects of moderate ginger consumption on nausea symptoms."
+    },
+    {
+      "source_case_id": 383,
+      "question": "Any relevant family history?",
+      "answer": "A 42-year-old primigravida woman goes into labor at 37 weeks."
+    },
+    {
+      "source_case_id": 1236,
+      "question": "What does the physical examination show?",
+      "answer": "Physical exam reveals partial or full-thickness burns across an estimated 30% of his total body surface area."
+    },
+    {
+      "source_case_id": 658,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "Physical examination shows reddish-brown spots under his nail bed (as shown in the exhibit) and tender erythematous fingers tips."
+    },
+    {
+      "source_case_id": 321,
+      "question": "Is there any relevant past medical history?",
+      "answer": "A 21-year-old woman presents to her physician for a regular follow-up visit."
+    },
+    {
+      "source_case_id": 208,
+      "question": "Does the patient take any medications?",
+      "answer": "She is 163 cm (5 ft 4 in) tall and weighs 91 kg (200 lb); her BMI is 34 kg/m2."
+    },
+    {
+      "source_case_id": 986,
+      "question": "Any relevant family history?",
+      "answer": "He reports that he has been compliant with his medication regimen."
+    },
+    {
+      "source_case_id": 339,
+      "question": "What does the physical examination show?",
+      "answer": "A 45-year-old man presents with a chronic productive cough that he has had for the past few years."
+    },
+    {
+      "source_case_id": 1260,
+      "question": "Can you describe any additional symptoms?",
+      "answer": "A 32-year-old man comes with his wife to the primary care physician because she is concerned about his drinking behavior."
+    },
+    {
+      "source_case_id": 178,
+      "question": "Is there any relevant past medical history?",
+      "answer": "Fundoscopy shows bilateral optic disc swelling."
+    },
+    {
+      "source_case_id": 756,
+      "question": "Does the patient take any medications?",
+      "answer": "A 14-year-old girl with a BMI of 17 complains of frequent urination, excessive thirst, and abdominal pain."
+    },
+    {
+      "source_case_id": 1014,
+      "question": "Any relevant family history?",
+      "answer": "Exam reveals a crescendo-decrescendo systolic ejection murmur that radiates to the carotids."
+    },
+    {
+      "source_case_id": 42,
+      "question": "What does the physical examination show?",
+      "answer": "She had similar symptoms last year and her medical record included the following arterial blood gas findings: | pH 7.51 | pO2 77 mm Hg | pCO2  32 mm Hg | An ECG last year demonstrated a right axis deviation."
+    }
+  ]
+}

@@ -1,0 +1,2104 @@
+{
+ "format_version": 1,
+ "phase": "P0 zero-cost compression analysis",
+ "model_calls_made": 0,
+ "stages": {
+  "5O": {
+   "source_file": "graphrag/eval/external/mediq/stage5o_handoff_results.json",
+   "stage": "5O",
+   "model": "gemini-2.5-flash",
+   "n_cases": 30,
+   "transcript_condition": "full-transcript",
+   "compression": {
+    "diagnostic_input_tokens_exact": {
+     "full-transcript": {
+      "mean": 2241.3,
+      "median": 2179.5,
+      "min": 1683,
+      "max": 3844,
+      "n": 30
+     },
+     "handoff-plus-sources": {
+      "mean": 2824.4,
+      "median": 2816.0,
+      "min": 1965,
+      "max": 4868,
+      "n": 30
+     },
+     "structured-handoff": {
+      "mean": 2532.3,
+      "median": 2586.0,
+      "min": 1817,
+      "max": 2945,
+      "n": 30
+     }
+    },
+    "diagnostic_input_tokens_vs_transcript_mean_ratio": {
+     "full-transcript": 1.0,
+     "handoff-plus-sources": 1.2602,
+     "structured-handoff": 1.1298
+    },
+    "representation_ratio_handoff_over_transcript": {
+     "mean": 2.1436,
+     "median": 2.0846,
+     "min": 1.3353,
+     "max": 3.5691,
+     "note": "char-based heuristic on the serialised patient input only"
+    }
+   },
+   "fact_preservation": {
+    "mean_lexical_fact_recall": 0.8736,
+    "mean_lexical_fact_precision": 0.6069,
+    "negated_source_facts": 15,
+    "negated_source_facts_retained": 14,
+    "negation_retention_rate": 0.9333,
+    "total_handoff_facts": 244,
+    "fabricated_fact_count": 0,
+    "fabricated_fact_rate": 0.0,
+    "note": "negation retention and fabrication checks are lexical heuristics"
+   },
+   "failure_catalog": {
+    "cases_wrong_in_at_least_one_condition": 8,
+    "root_cause_label_counts": {
+     "information-acquisition-or-intrinsic (wrong in all conditions)": 5,
+     "transcript-noise-candidate (handoff right, transcript wrong)": 3
+    },
+    "cases": [
+     {
+      "case_id": "mediq-1049",
+      "specialty": "Internal Medicine",
+      "questions_asked": 2,
+      "correct_by_condition": {
+       "handoff-plus-sources": false,
+       "full-transcript": false,
+       "structured-handoff": false
+      },
+      "fact_recall": 1.0,
+      "root_cause_label": "information-acquisition-or-intrinsic (wrong in all conditions)"
+     },
+     {
+      "case_id": "mediq-141",
+      "specialty": "Internal Medicine",
+      "questions_asked": 3,
+      "correct_by_condition": {
+       "handoff-plus-sources": false,
+       "full-transcript": false,
+       "structured-handoff": false
+      },
+      "fact_recall": 0.8,
+      "root_cause_label": "information-acquisition-or-intrinsic (wrong in all conditions)"
+     },
+     {
+      "case_id": "mediq-162",
+      "specialty": "Emergency Medicine",
+      "questions_asked": 2,
+      "correct_by_condition": {
+       "handoff-plus-sources": false,
+       "full-transcript": false,
+       "structured-handoff": false
+      },
+      "fact_recall": 1.0,
+      "root_cause_label": "information-acquisition-or-intrinsic (wrong in all conditions)"
+     },
+     {
+      "case_id": "mediq-666",
+      "specialty": "Emergency Medicine",
+      "questions_asked": 3,
+      "correct_by_condition": {
+       "handoff-plus-sources": true,
+       "full-transcript": false,
+       "structured-handoff": true
+      },
+      "fact_recall": 0.6666666666666666,
+      "root_cause_label": "transcript-noise-candidate (handoff right, transcript wrong)"
+     },
+     {
+      "case_id": "mediq-38",
+      "specialty": "Emergency Medicine",
+      "questions_asked": 3,
+      "correct_by_condition": {
+       "handoff-plus-sources": false,
+       "full-transcript": false,
+       "structured-handoff": false
+      },
+      "fact_recall": 0.8,
+      "root_cause_label": "information-acquisition-or-intrinsic (wrong in all conditions)"
+     },
+     {
+      "case_id": "mediq-82",
+      "specialty": "Pediatrics",
+      "questions_asked": 3,
+      "correct_by_condition": {
+       "handoff-plus-sources": true,
+       "full-transcript": false,
+       "structured-handoff": true
+      },
+      "fact_recall": 1.0,
+      "root_cause_label": "transcript-noise-candidate (handoff right, transcript wrong)"
+     },
+     {
+      "case_id": "mediq-637",
+      "specialty": "Neurology",
+      "questions_asked": 3,
+      "correct_by_condition": {
+       "handoff-plus-sources": true,
+       "full-transcript": false,
+       "structured-handoff": true
+      },
+      "fact_recall": 1.0,
+      "root_cause_label": "transcript-noise-candidate (handoff right, transcript wrong)"
+     },
+     {
+      "case_id": "mediq-866",
+      "specialty": "Obstetrics and Gynecology",
+      "questions_asked": 3,
+      "correct_by_condition": {
+       "handoff-plus-sources": false,
+       "full-transcript": false,
+       "structured-handoff": false
+      },
+      "fact_recall": 0.8333333333333334,
+      "root_cause_label": "information-acquisition-or-intrinsic (wrong in all conditions)"
+     }
+    ]
+   },
+   "per_case": [
+    {
+     "case_id": "mediq-1049",
+     "specialty": "Internal Medicine",
+     "questions_asked": 2,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2771,
+       "output_tokens": 269,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2222,
+       "output_tokens": 296,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2526,
+       "output_tokens": 241,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1298,
+       "structured-handoff": 2286,
+       "handoff-plus-sources": 3316
+      },
+      "est_tokens": {
+       "full-transcript": 324.5,
+       "structured-handoff": 571.5,
+       "handoff-plus-sources": 829.0
+      },
+      "handoff_over_transcript_ratio": 1.7612
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.8333333333333334,
+     "negation": {
+      "negated_source_facts": 2,
+      "negated_source_facts_retained": 2,
+      "handoff_status_counts": {
+       "present": 6
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-141",
+     "specialty": "Internal Medicine",
+     "questions_asked": 3,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2761,
+       "output_tokens": 338,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2069,
+       "output_tokens": 335,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2550,
+       "output_tokens": 349,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1143,
+       "structured-handoff": 2618,
+       "handoff-plus-sources": 3315
+      },
+      "est_tokens": {
+       "full-transcript": 285.8,
+       "structured-handoff": 654.5,
+       "handoff-plus-sources": 828.8
+      },
+      "handoff_over_transcript_ratio": 2.2905
+     },
+     "fact_recall": 0.8,
+     "fact_precision": 0.5,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 7,
+       "unknown": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-701",
+     "specialty": "Internal Medicine",
+     "questions_asked": 3,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2904,
+       "output_tokens": 271,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2162,
+       "output_tokens": 265,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2665,
+       "output_tokens": 169,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1158,
+       "structured-handoff": 2624,
+       "handoff-plus-sources": 3420
+      },
+      "est_tokens": {
+       "full-transcript": 289.5,
+       "structured-handoff": 656.0,
+       "handoff-plus-sources": 855.0
+      },
+      "handoff_over_transcript_ratio": 2.266
+     },
+     "fact_recall": 0.8333333333333334,
+     "fact_precision": 0.8,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 10
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-1138",
+     "specialty": "Internal Medicine",
+     "questions_asked": 3,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2903,
+       "output_tokens": 266,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2257,
+       "output_tokens": 231,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "structured-handoff": {
+       "input_tokens": 2674,
+       "output_tokens": 251,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1134,
+       "structured-handoff": 2419,
+       "handoff-plus-sources": 3087
+      },
+      "est_tokens": {
+       "full-transcript": 283.5,
+       "structured-handoff": 604.8,
+       "handoff-plus-sources": 771.8
+      },
+      "handoff_over_transcript_ratio": 2.1332
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.7777777777777778,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 9
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-1145",
+     "specialty": "Internal Medicine",
+     "questions_asked": 3,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2782,
+       "output_tokens": 232,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2178,
+       "output_tokens": 196,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2552,
+       "output_tokens": 218,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1093,
+       "structured-handoff": 2295,
+       "handoff-plus-sources": 3038
+      },
+      "est_tokens": {
+       "full-transcript": 273.2,
+       "structured-handoff": 573.8,
+       "handoff-plus-sources": 759.5
+      },
+      "handoff_over_transcript_ratio": 2.0997
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.75,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 7,
+       "unknown": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-567",
+     "specialty": "Internal Medicine",
+     "questions_asked": 3,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2347,
+       "output_tokens": 293,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 3844,
+       "output_tokens": 1314,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2154,
+       "output_tokens": 410,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1043,
+       "structured-handoff": 1781,
+       "handoff-plus-sources": 2361
+      },
+      "est_tokens": {
+       "full-transcript": 260.8,
+       "structured-handoff": 445.2,
+       "handoff-plus-sources": 590.2
+      },
+      "handoff_over_transcript_ratio": 1.7076
+     },
+     "fact_recall": 0.5,
+     "fact_precision": 0.3333333333333333,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 4,
+       "unknown": 2
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-162",
+     "specialty": "Emergency Medicine",
+     "questions_asked": 2,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 1965,
+       "output_tokens": 215,
+       "correct": false,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "full-transcript": {
+       "input_tokens": 3436,
+       "output_tokens": 1234,
+       "correct": false,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "structured-handoff": {
+       "input_tokens": 1817,
+       "output_tokens": 345,
+       "correct": false,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 770,
+       "structured-handoff": 1204,
+       "handoff-plus-sources": 1677
+      },
+      "est_tokens": {
+       "full-transcript": 192.5,
+       "structured-handoff": 301.0,
+       "handoff-plus-sources": 419.2
+      },
+      "handoff_over_transcript_ratio": 1.5636
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.3333333333333333,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 3
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-979",
+     "specialty": "Emergency Medicine",
+     "questions_asked": 2,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2617,
+       "output_tokens": 149,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2180,
+       "output_tokens": 188,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2427,
+       "output_tokens": 192,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 888,
+       "structured-handoff": 1570,
+       "handoff-plus-sources": 2222
+      },
+      "est_tokens": {
+       "full-transcript": 222.0,
+       "structured-handoff": 392.5,
+       "handoff-plus-sources": 555.5
+      },
+      "handoff_over_transcript_ratio": 1.768
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.8333333333333334,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 5,
+       "unknown": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-666",
+     "specialty": "Emergency Medicine",
+     "questions_asked": 3,
+     "gold_choice": "B",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 3056,
+       "output_tokens": 415,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "full-transcript": {
+       "input_tokens": 2076,
+       "output_tokens": 224,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2828,
+       "output_tokens": 260,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1132,
+       "structured-handoff": 3267,
+       "handoff-plus-sources": 4011
+      },
+      "est_tokens": {
+       "full-transcript": 283.0,
+       "structured-handoff": 816.8,
+       "handoff-plus-sources": 1002.8
+      },
+      "handoff_over_transcript_ratio": 2.886
+     },
+     "fact_recall": 0.6666666666666666,
+     "fact_precision": 0.4166666666666667,
+     "negation": {
+      "negated_source_facts": 2,
+      "negated_source_facts_retained": 2,
+      "handoff_status_counts": {
+       "present": 8,
+       "absent": 3,
+       "unknown": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-743",
+     "specialty": "Emergency Medicine",
+     "questions_asked": 3,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2818,
+       "output_tokens": 351,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2324,
+       "output_tokens": 277,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2602,
+       "output_tokens": 424,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1034,
+       "structured-handoff": 1903,
+       "handoff-plus-sources": 2534
+      },
+      "est_tokens": {
+       "full-transcript": 258.5,
+       "structured-handoff": 475.8,
+       "handoff-plus-sources": 633.5
+      },
+      "handoff_over_transcript_ratio": 1.8404
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 1.0,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 7
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-788",
+     "specialty": "Emergency Medicine",
+     "questions_asked": 3,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2502,
+       "output_tokens": 337,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2046,
+       "output_tokens": 223,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2296,
+       "output_tokens": 217,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1026,
+       "structured-handoff": 1765,
+       "handoff-plus-sources": 2434
+      },
+      "est_tokens": {
+       "full-transcript": 256.5,
+       "structured-handoff": 441.2,
+       "handoff-plus-sources": 608.5
+      },
+      "handoff_over_transcript_ratio": 1.7203
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.5,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 3,
+       "unknown": 3
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-38",
+     "specialty": "Emergency Medicine",
+     "questions_asked": 3,
+     "gold_choice": "B",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2846,
+       "output_tokens": 337,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2017,
+       "output_tokens": 347,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2629,
+       "output_tokens": 336,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1073,
+       "structured-handoff": 2905,
+       "handoff-plus-sources": 3610
+      },
+      "est_tokens": {
+       "full-transcript": 268.2,
+       "structured-handoff": 726.2,
+       "handoff-plus-sources": 902.5
+      },
+      "handoff_over_transcript_ratio": 2.7074
+     },
+     "fact_recall": 0.8,
+     "fact_precision": 0.7272727272727273,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 8,
+       "absent": 2,
+       "unknown": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-82",
+     "specialty": "Pediatrics",
+     "questions_asked": 3,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 4868,
+       "output_tokens": 246,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "full-transcript": {
+       "input_tokens": 2013,
+       "output_tokens": 243,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2216,
+       "output_tokens": 164,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1089,
+       "structured-handoff": 1775,
+       "handoff-plus-sources": 2480
+      },
+      "est_tokens": {
+       "full-transcript": 272.2,
+       "structured-handoff": 443.8,
+       "handoff-plus-sources": 620.0
+      },
+      "handoff_over_transcript_ratio": 1.6299
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.8333333333333334,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 5,
+       "absent": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-216",
+     "specialty": "Pediatrics",
+     "questions_asked": 2,
+     "gold_choice": "B",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2894,
+       "output_tokens": 252,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "full-transcript": {
+       "input_tokens": 2179,
+       "output_tokens": 266,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "structured-handoff": {
+       "input_tokens": 2716,
+       "output_tokens": 246,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 853,
+       "structured-handoff": 2472,
+       "handoff-plus-sources": 3047
+      },
+      "est_tokens": {
+       "full-transcript": 213.2,
+       "structured-handoff": 618.0,
+       "handoff-plus-sources": 761.8
+      },
+      "handoff_over_transcript_ratio": 2.898
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.6666666666666666,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 8,
+       "unknown": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-1036",
+     "specialty": "Pediatrics",
+     "questions_asked": 3,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2668,
+       "output_tokens": 287,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2192,
+       "output_tokens": 227,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2497,
+       "output_tokens": 236,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1081,
+       "structured-handoff": 1999,
+       "handoff-plus-sources": 2537
+      },
+      "est_tokens": {
+       "full-transcript": 270.2,
+       "structured-handoff": 499.8,
+       "handoff-plus-sources": 634.2
+      },
+      "handoff_over_transcript_ratio": 1.8492
+     },
+     "fact_recall": 0.6666666666666666,
+     "fact_precision": 0.2857142857142857,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 5,
+       "unknown": 2
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-530",
+     "specialty": "Pediatrics",
+     "questions_asked": 3,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2776,
+       "output_tokens": 252,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2053,
+       "output_tokens": 259,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2573,
+       "output_tokens": 286,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1035,
+       "structured-handoff": 2638,
+       "handoff-plus-sources": 3265
+      },
+      "est_tokens": {
+       "full-transcript": 258.8,
+       "structured-handoff": 659.5,
+       "handoff-plus-sources": 816.2
+      },
+      "handoff_over_transcript_ratio": 2.5488
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.4,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 4,
+       "unknown": 6
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-877",
+     "specialty": "Pediatrics",
+     "questions_asked": 3,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2588,
+       "output_tokens": 281,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2065,
+       "output_tokens": 173,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2352,
+       "output_tokens": 341,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1043,
+       "structured-handoff": 1938,
+       "handoff-plus-sources": 2629
+      },
+      "est_tokens": {
+       "full-transcript": 260.8,
+       "structured-handoff": 484.5,
+       "handoff-plus-sources": 657.2
+      },
+      "handoff_over_transcript_ratio": 1.8581
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.5714285714285714,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 5,
+       "unknown": 2
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-170",
+     "specialty": "Pediatrics",
+     "questions_asked": 3,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2865,
+       "output_tokens": 192,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2186,
+       "output_tokens": 256,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2634,
+       "output_tokens": 236,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1189,
+       "structured-handoff": 2449,
+       "handoff-plus-sources": 3199
+      },
+      "est_tokens": {
+       "full-transcript": 297.2,
+       "structured-handoff": 612.2,
+       "handoff-plus-sources": 799.8
+      },
+      "handoff_over_transcript_ratio": 2.0597
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.5555555555555556,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 8,
+       "unknown": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-637",
+     "specialty": "Neurology",
+     "questions_asked": 3,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 3207,
+       "output_tokens": 465,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2299,
+       "output_tokens": 225,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2945,
+       "output_tokens": 342,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1341,
+       "structured-handoff": 3166,
+       "handoff-plus-sources": 3925
+      },
+      "est_tokens": {
+       "full-transcript": 335.2,
+       "structured-handoff": 791.5,
+       "handoff-plus-sources": 981.2
+      },
+      "handoff_over_transcript_ratio": 2.3609
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.8461538461538461,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 9,
+       "absent": 4
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-358",
+     "specialty": "Neurology",
+     "questions_asked": 3,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2814,
+       "output_tokens": 396,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2160,
+       "output_tokens": 199,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2599,
+       "output_tokens": 366,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1124,
+       "structured-handoff": 2326,
+       "handoff-plus-sources": 3038
+      },
+      "est_tokens": {
+       "full-transcript": 281.0,
+       "structured-handoff": 581.5,
+       "handoff-plus-sources": 759.5
+      },
+      "handoff_over_transcript_ratio": 2.0694
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.5,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 6,
+       "unknown": 2
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-1252",
+     "specialty": "Neurology",
+     "questions_asked": 3,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2796,
+       "output_tokens": 325,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2157,
+       "output_tokens": 377,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2573,
+       "output_tokens": 375,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1055,
+       "structured-handoff": 2251,
+       "handoff-plus-sources": 2968
+      },
+      "est_tokens": {
+       "full-transcript": 263.8,
+       "structured-handoff": 562.8,
+       "handoff-plus-sources": 742.0
+      },
+      "handoff_over_transcript_ratio": 2.1336
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.0,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 6,
+       "unknown": 3
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-791",
+     "specialty": "Neurology",
+     "questions_asked": 3,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2772,
+       "output_tokens": 271,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2211,
+       "output_tokens": 263,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2553,
+       "output_tokens": 298,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1129,
+       "structured-handoff": 2116,
+       "handoff-plus-sources": 2820
+      },
+      "est_tokens": {
+       "full-transcript": 282.2,
+       "structured-handoff": 529.0,
+       "handoff-plus-sources": 705.0
+      },
+      "handoff_over_transcript_ratio": 1.8742
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.75,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 7,
+       "unknown": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-706",
+     "specialty": "Neurology",
+     "questions_asked": 2,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2881,
+       "output_tokens": 399,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 1920,
+       "output_tokens": 294,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2721,
+       "output_tokens": 347,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 861,
+       "structured-handoff": 3073,
+       "handoff-plus-sources": 3585
+      },
+      "est_tokens": {
+       "full-transcript": 215.2,
+       "structured-handoff": 768.2,
+       "handoff-plus-sources": 896.2
+      },
+      "handoff_over_transcript_ratio": 3.5691
+     },
+     "fact_recall": 0.0,
+     "fact_precision": 0.0,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 7,
+       "unknown": 5
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-454",
+     "specialty": "Neurology",
+     "questions_asked": 3,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2444,
+       "output_tokens": 310,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2205,
+       "output_tokens": 271,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2319,
+       "output_tokens": 249,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1017,
+       "structured-handoff": 1358,
+       "handoff-plus-sources": 1724
+      },
+      "est_tokens": {
+       "full-transcript": 254.2,
+       "structured-handoff": 339.5,
+       "handoff-plus-sources": 431.0
+      },
+      "handoff_over_transcript_ratio": 1.3353
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 1.0,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 4
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-438",
+     "specialty": "Obstetrics and Gynecology",
+     "questions_asked": 3,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 3040,
+       "output_tokens": 348,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2162,
+       "output_tokens": 319,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2768,
+       "output_tokens": 376,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1318,
+       "structured-handoff": 3048,
+       "handoff-plus-sources": 3957
+      },
+      "est_tokens": {
+       "full-transcript": 329.5,
+       "structured-handoff": 762.0,
+       "handoff-plus-sources": 989.2
+      },
+      "handoff_over_transcript_ratio": 2.3126
+     },
+     "fact_recall": 0.75,
+     "fact_precision": 0.8333333333333334,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 12
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-899",
+     "specialty": "Obstetrics and Gynecology",
+     "questions_asked": 3,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2928,
+       "output_tokens": 380,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2244,
+       "output_tokens": 348,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2696,
+       "output_tokens": 421,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1241,
+       "structured-handoff": 2650,
+       "handoff-plus-sources": 3448
+      },
+      "est_tokens": {
+       "full-transcript": 310.2,
+       "structured-handoff": 662.5,
+       "handoff-plus-sources": 862.0
+      },
+      "handoff_over_transcript_ratio": 2.1354
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.5555555555555556,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 8,
+       "unknown": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-365",
+     "specialty": "Obstetrics and Gynecology",
+     "questions_asked": 3,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2839,
+       "output_tokens": 391,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "full-transcript": {
+       "input_tokens": 2263,
+       "output_tokens": 254,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "structured-handoff": {
+       "input_tokens": 2625,
+       "output_tokens": 304,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1119,
+       "structured-handoff": 2269,
+       "handoff-plus-sources": 2932
+      },
+      "est_tokens": {
+       "full-transcript": 279.8,
+       "structured-handoff": 567.2,
+       "handoff-plus-sources": 733.0
+      },
+      "handoff_over_transcript_ratio": 2.0277
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.42857142857142855,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 5,
+       "unknown": 2
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-497",
+     "specialty": "Obstetrics and Gynecology",
+     "questions_asked": 2,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2023,
+       "output_tokens": 183,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "full-transcript": {
+       "input_tokens": 1683,
+       "output_tokens": 239,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 1863,
+       "output_tokens": 189,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 753,
+       "structured-handoff": 1332,
+       "handoff-plus-sources": 1810
+      },
+      "est_tokens": {
+       "full-transcript": 188.2,
+       "structured-handoff": 333.0,
+       "handoff-plus-sources": 452.5
+      },
+      "handoff_over_transcript_ratio": 1.7689
+     },
+     "fact_recall": 0.5,
+     "fact_precision": 0.5,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 3,
+       "absent": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-866",
+     "specialty": "Obstetrics and Gynecology",
+     "questions_asked": 3,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2923,
+       "output_tokens": 250,
+       "correct": false,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "full-transcript": {
+       "input_tokens": 2253,
+       "output_tokens": 270,
+       "correct": false,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "structured-handoff": {
+       "input_tokens": 2692,
+       "output_tokens": 282,
+       "correct": false,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1150,
+       "structured-handoff": 2566,
+       "handoff-plus-sources": 3276
+      },
+      "est_tokens": {
+       "full-transcript": 287.5,
+       "structured-handoff": 641.5,
+       "handoff-plus-sources": 819.0
+      },
+      "handoff_over_transcript_ratio": 2.2313
+     },
+     "fact_recall": 0.8333333333333334,
+     "fact_precision": 0.8571428571428571,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 7
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-824",
+     "specialty": "Obstetrics and Gynecology",
+     "questions_asked": 3,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 3133,
+       "output_tokens": 366,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "full-transcript": {
+       "input_tokens": 2184,
+       "output_tokens": 257,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2907,
+       "output_tokens": 433,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1106,
+       "structured-handoff": 3210,
+       "handoff-plus-sources": 3921
+      },
+      "est_tokens": {
+       "full-transcript": 276.5,
+       "structured-handoff": 802.5,
+       "handoff-plus-sources": 980.2
+      },
+      "handoff_over_transcript_ratio": 2.9024
+     },
+     "fact_recall": 0.8571428571428571,
+     "fact_precision": 0.8181818181818182,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 10,
+       "absent": 1
+      }
+     },
+     "fabricated_fact_ids": []
+    }
+   ]
+  },
+  "5N": {
+   "source_file": "graphrag/eval/external/mediq/stage5n_handoff_results.json",
+   "stage": "5N",
+   "model": "gemini-2.5-flash",
+   "n_cases": 5,
+   "transcript_condition": "raw-conversation",
+   "compression": {
+    "diagnostic_input_tokens_exact": {
+     "handoff-plus-sources": {
+      "mean": 2752.6,
+      "median": 2715,
+      "min": 2533,
+      "max": 3120,
+      "n": 5
+     },
+     "raw-conversation": {
+      "mean": 1942.8,
+      "median": 1990,
+      "min": 1813,
+      "max": 2048,
+      "n": 5
+     },
+     "structured-handoff": {
+      "mean": 2538.8,
+      "median": 2499,
+      "min": 2363,
+      "max": 2862,
+      "n": 5
+     }
+    },
+    "diagnostic_input_tokens_vs_transcript_mean_ratio": {
+     "handoff-plus-sources": 1.4168,
+     "raw-conversation": 1.0,
+     "structured-handoff": 1.3068
+    },
+    "representation_ratio_handoff_over_transcript": {
+     "mean": 2.3996,
+     "median": 2.2913,
+     "min": 2.1019,
+     "max": 2.8142,
+     "note": "char-based heuristic on the serialised patient input only"
+    }
+   },
+   "fact_preservation": {
+    "mean_lexical_fact_recall": 0.8648,
+    "mean_lexical_fact_precision": 0.5471,
+    "negated_source_facts": 2,
+    "negated_source_facts_retained": 2,
+    "negation_retention_rate": 1.0,
+    "total_handoff_facts": 45,
+    "fabricated_fact_count": 0,
+    "fabricated_fact_rate": 0.0,
+    "note": "negation retention and fabrication checks are lexical heuristics"
+   },
+   "failure_catalog": {
+    "cases_wrong_in_at_least_one_condition": 2,
+    "root_cause_label_counts": {
+     "mixed (see per-condition detail)": 2
+    },
+    "cases": [
+     {
+      "case_id": "mediq-586",
+      "specialty": "Emergency Medicine",
+      "questions_asked": 2,
+      "correct_by_condition": {
+       "handoff-plus-sources": true,
+       "raw-conversation": false,
+       "structured-handoff": false
+      },
+      "fact_recall": 1.0,
+      "root_cause_label": "mixed (see per-condition detail)"
+     },
+     {
+      "case_id": "mediq-502",
+      "specialty": "Obstetrics and Gynecology",
+      "questions_asked": 3,
+      "correct_by_condition": {
+       "handoff-plus-sources": false,
+       "raw-conversation": false,
+       "structured-handoff": false
+      },
+      "fact_recall": 0.8,
+      "root_cause_label": "mixed (see per-condition detail)"
+     }
+    ]
+   },
+   "per_case": [
+    {
+     "case_id": "mediq-487",
+     "specialty": "Internal Medicine",
+     "questions_asked": 3,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2741,
+       "output_tokens": 259,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "raw-conversation": {
+       "input_tokens": 1990,
+       "output_tokens": 268,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2499,
+       "output_tokens": 271,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1109,
+       "structured-handoff": 2331,
+       "handoff-plus-sources": 3058
+      },
+      "est_tokens": {
+       "full-transcript": 277.2,
+       "structured-handoff": 582.8,
+       "handoff-plus-sources": 764.5
+      },
+      "handoff_over_transcript_ratio": 2.1019
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.75,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 8
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-586",
+     "specialty": "Emergency Medicine",
+     "questions_asked": 2,
+     "gold_choice": "A",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2533,
+       "output_tokens": 331,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "raw-conversation": {
+       "input_tokens": 1850,
+       "output_tokens": 320,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2363,
+       "output_tokens": 321,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 759,
+       "structured-handoff": 2136,
+       "handoff-plus-sources": 2687
+      },
+      "est_tokens": {
+       "full-transcript": 189.8,
+       "structured-handoff": 534.0,
+       "handoff-plus-sources": 671.8
+      },
+      "handoff_over_transcript_ratio": 2.8142
+     },
+     "fact_recall": 1.0,
+     "fact_precision": 0.2857142857142857,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 5,
+       "unknown": 2
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-423",
+     "specialty": "Pediatrics",
+     "questions_asked": 3,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 3120,
+       "output_tokens": 372,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "raw-conversation": {
+       "input_tokens": 2048,
+       "output_tokens": 342,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2862,
+       "output_tokens": 373,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1356,
+       "structured-handoff": 3107,
+       "handoff-plus-sources": 3946
+      },
+      "est_tokens": {
+       "full-transcript": 339.0,
+       "structured-handoff": 776.8,
+       "handoff-plus-sources": 986.5
+      },
+      "handoff_over_transcript_ratio": 2.2913
+     },
+     "fact_recall": 0.8571428571428571,
+     "fact_precision": 0.75,
+     "negation": {
+      "negated_source_facts": 0,
+      "negated_source_facts_retained": 0,
+      "handoff_status_counts": {
+       "present": 12
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-843",
+     "specialty": "Neurology",
+     "questions_asked": 2,
+     "gold_choice": "C",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2715,
+       "output_tokens": 224,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      },
+      "raw-conversation": {
+       "input_tokens": 2013,
+       "output_tokens": 197,
+       "correct": true,
+       "status": "invalid_output",
+       "error": "ValueError: Diagnosis must cite patient information and textbook evidence"
+      },
+      "structured-handoff": {
+       "input_tokens": 2552,
+       "output_tokens": 215,
+       "correct": true,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 823,
+       "structured-handoff": 2067,
+       "handoff-plus-sources": 2552
+      },
+      "est_tokens": {
+       "full-transcript": 205.8,
+       "structured-handoff": 516.8,
+       "handoff-plus-sources": 638.0
+      },
+      "handoff_over_transcript_ratio": 2.5115
+     },
+     "fact_recall": 0.6666666666666666,
+     "fact_precision": 0.25,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 3,
+       "unknown": 5
+      }
+     },
+     "fabricated_fact_ids": []
+    },
+    {
+     "case_id": "mediq-502",
+     "specialty": "Obstetrics and Gynecology",
+     "questions_asked": 3,
+     "gold_choice": "D",
+     "diagnostic_calls": {
+      "handoff-plus-sources": {
+       "input_tokens": 2654,
+       "output_tokens": 349,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "raw-conversation": {
+       "input_tokens": 1813,
+       "output_tokens": 259,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      },
+      "structured-handoff": {
+       "input_tokens": 2418,
+       "output_tokens": 365,
+       "correct": false,
+       "status": "completed",
+       "error": ""
+      }
+     },
+     "representation": {
+      "chars": {
+       "full-transcript": 1132,
+       "structured-handoff": 2580,
+       "handoff-plus-sources": 3400
+      },
+      "est_tokens": {
+       "full-transcript": 283.0,
+       "structured-handoff": 645.0,
+       "handoff-plus-sources": 850.0
+      },
+      "handoff_over_transcript_ratio": 2.2792
+     },
+     "fact_recall": 0.8,
+     "fact_precision": 0.7,
+     "negation": {
+      "negated_source_facts": 1,
+      "negated_source_facts_retained": 1,
+      "handoff_status_counts": {
+       "present": 10
+      }
+     },
+     "fabricated_fact_ids": []
+    }
+   ]
+  }
+ }
+}

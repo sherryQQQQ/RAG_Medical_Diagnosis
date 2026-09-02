@@ -12,7 +12,9 @@ reasoning or unstructured message history.
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any, Callable, NotRequired, TypedDict
+from typing import Any, Callable
+
+from typing_extensions import NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 

@@ -1,0 +1,12 @@
+# Minimal pinned dependencies for the MediQ handoff/compaction benchmark path
+# (graphrag.eval.mediq_* + graphrag.agent.clinical_*). Deliberately excludes
+# faiss/sentence-transformers/neo4j, which this path does not import — keeps
+# the Docker image ~10x smaller. Verified: full offline test suite passes with
+# exactly this set.
+langgraph==1.2.0
+langchain-core==1.4.0
+langchain-google-genai==4.2.2
+langsmith==0.8.3
+python-dotenv==1.2.2
+PyYAML==6.0.3
+pytest==8.3.4

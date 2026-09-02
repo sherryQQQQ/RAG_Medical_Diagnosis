@@ -17,7 +17,9 @@ import json
 import re
 import time
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Mapping, NotRequired, TypedDict
+from typing import Any, Callable, Mapping
+
+from typing_extensions import NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 

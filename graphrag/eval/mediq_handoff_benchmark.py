@@ -268,13 +268,90 @@ def _evidence_text(evidence: tuple[EvidenceItem, ...]) -> str:
     return "\n\n".join(blocks)
 
 
+SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {"summary": {"type": "string"}},
+    "required": ["summary"],
+}
+
+
+def _truncate_headtail(
+    conversation: tuple[ConversationTurn, ...], budget_chars: int
+) -> tuple[str, set[str]]:
+    """Keep whole turns from the head and tail of the transcript within a
+    character budget (Phase 1 literature baseline). Turn-granular rather than
+    raw-character truncation so the serialisation stays valid JSON and turn IDs
+    stay unambiguous; the elision marker records what was dropped."""
+    serialised = [json.dumps(asdict(turn), indent=2) for turn in conversation]
+    if sum(len(chunk) for chunk in serialised) <= budget_chars:
+        kept = list(range(len(conversation)))
+    else:
+        head: list[int] = []
+        tail: list[int] = []
+        used = 0
+        half = budget_chars / 2
+        for index in range(len(conversation)):
+            if used + len(serialised[index]) > half:
+                break
+            head.append(index)
+            used += len(serialised[index])
+        for index in range(len(conversation) - 1, (head[-1] if head else -1), -1):
+            if used + len(serialised[index]) > budget_chars:
+                break
+            tail.insert(0, index)
+            used += len(serialised[index])
+        kept = head + tail
+    elided = len(conversation) - len(kept)
+    items: list[Any] = []
+    marker_placed = False
+    for position, index in enumerate(kept):
+        if (
+            not marker_placed
+            and position > 0
+            and index != kept[position - 1] + 1
+        ):
+            items.append({"elided_turns": elided})
+            marker_placed = True
+        items.append(asdict(conversation[index]))
+    if elided and not marker_placed:
+        items.append({"elided_turns": elided})
+    allowed = {
+        conversation[index].turn_id
+        for index in kept
+        if conversation[index].role == "patient"
+    }
+    return json.dumps(items, indent=2), allowed
+
+
+def _summary_prompt(case: MediQCase, conversation: tuple[ConversationTurn, ...]) -> str:
+    transcript = json.dumps([asdict(turn) for turn in conversation], indent=2)
+    return f"""You are a clinical summarizer in a medical multiple-choice research benchmark.
+Write one concise free-text summary (at most 200 words) of the patient interview transcript below so that a fresh diagnostic model can answer the benchmark question. Plain prose only: no structure, no fact IDs, no turn citations, no diagnosis, and no information that is not in the transcript.
+
+Benchmark question:
+{case.question}
+
+Answer options (context for what matters, not for answering):
+{_format_options(case.options)}
+
+Patient transcript:
+{transcript}
+
+Return only the required JSON object."""
+
+
 def _diagnosis_prompt(
     case: MediQCase,
     packet: DiagnosticPacket,
     condition: str,
     conversation: tuple[ConversationTurn, ...] = (),
+    summary_text: str = "",
 ) -> tuple[str, set[str]]:
-    supported_conditions = set(DIAGNOSTIC_CONDITIONS) | {"full-transcript"}
+    supported_conditions = set(DIAGNOSTIC_CONDITIONS) | {
+        "full-transcript",
+        "truncation-headtail",
+        "freetext-summary",
+    }
     if condition not in supported_conditions:
         raise ValueError(f"Unknown diagnostic condition: {condition}")
     if condition == "full-transcript":
@@ -285,6 +362,24 @@ def _diagnosis_prompt(
             turn.turn_id for turn in conversation if turn.role == "patient"
         }
         input_description = "Complete interviewer and patient transcript"
+    elif condition == "truncation-headtail":
+        if not conversation:
+            raise ValueError("Truncation condition requires the conversation")
+        budget = len(json.dumps(asdict(packet.handoff), indent=2))
+        patient_input, allowed_patient_ids = _truncate_headtail(conversation, budget)
+        input_description = (
+            "Head-and-tail truncated transcript (middle turns elided to match "
+            "the structured-handoff size budget)"
+        )
+    elif condition == "freetext-summary":
+        if not summary_text:
+            raise ValueError("Freetext-summary condition requires the summary text")
+        patient_input = summary_text
+        allowed_patient_ids = {"summary"}
+        input_description = (
+            "Unstructured free-text interview summary (cite the patient ID "
+            '"summary")'
+        )
     elif condition == "raw-conversation":
         patient_input = json.dumps([asdict(turn) for turn in packet.source_turns], indent=2)
         allowed_patient_ids = {turn.turn_id for turn in packet.source_turns}
@@ -493,19 +588,36 @@ def _case_run(
         call_id = f"{case.case_id}:interview:{turn}"
         response = provider(call_id, "interview", prompt, INTERVIEW_SCHEMA)
         record_response("interview", response)
-        try:
-            raw_payload = _json_object(response.raw_output)
-            update = parse_interview_update(response.raw_output, conversation)
-        except json.JSONDecodeError:
-            response = provider(
-                f"{call_id}:retry-json-v1",
-                "interview-retry-json",
-                prompt,
-                INTERVIEW_SCHEMA,
-            )
-            record_response("interview-retry-json", response)
-            raw_payload = _json_object(response.raw_output)
-            update = parse_interview_update(response.raw_output, conversation)
+        raw_payload: dict = {}
+        last_error: Exception | None = None
+        update: InterviewUpdate | None = None
+        # Up to 2 retries: first catches json errors (stage name kept for
+        # checkpoint compatibility); second catches contract violations such as
+        # empty source_turn_ids or unknown patient-turn citations.
+        _retry_specs = [
+            ("retry-json-v1", "interview-retry-json"),
+            ("retry-contract-v1", "interview-retry-contract"),
+        ]
+        for attempt in range(3):
+            if attempt > 0:
+                rid, rlabel = _retry_specs[attempt - 1]
+                response = provider(
+                    f"{call_id}:{rid}",
+                    rlabel,
+                    prompt,
+                    INTERVIEW_SCHEMA,
+                )
+                record_response(rlabel, response)
+            try:
+                raw_payload = _json_object(response.raw_output)
+                update = parse_interview_update(response.raw_output, conversation)
+                last_error = None
+                break
+            except (json.JSONDecodeError, ValueError) as exc:
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+        assert update is not None
         if raw_payload.get("ready_for_diagnosis") and (
             raw_payload.get("missing_information")
             or raw_payload.get("contradictions")
@@ -541,9 +653,10 @@ def _case_run(
         packet: DiagnosticPacket,
         condition: str,
         conversation: tuple[ConversationTurn, ...] = (),
+        summary_text: str = "",
     ) -> tuple[dict[str, Any] | None, ProviderResponse, Exception | None]:
         prompt, allowed_patient_ids = _diagnosis_prompt(
-            case, packet, condition, conversation=conversation
+            case, packet, condition, conversation=conversation, summary_text=summary_text
         )
         call_id = f"{case.case_id}:diagnose:{condition}"
         stage = f"diagnose:{condition}"
@@ -567,20 +680,24 @@ def _case_run(
                 "Invalid answer choice:"
             )
             if retryable:
-                retry_stage = f"{stage}:retry-contract-v1"
-                attempts.append(
-                    provider(
-                        f"{call_id}:retry-contract-v1",
-                        retry_stage,
-                        prompt,
-                        diagnosis_schema(case.options),
+                # Up to 2 retries for transient truncation or contract errors.
+                for retry_n in range(1, 3):
+                    retry_stage = f"{stage}:retry-contract-v{retry_n}"
+                    attempts.append(
+                        provider(
+                            f"{call_id}:retry-contract-v{retry_n}",
+                            retry_stage,
+                            prompt,
+                            diagnosis_schema(case.options),
+                        )
                     )
-                )
-                record_response(retry_stage, attempts[-1])
-                try:
-                    parsed = parse(attempts[-1])
-                except Exception as retry_error:
-                    final_error = retry_error
+                    record_response(retry_stage, attempts[-1])
+                    try:
+                        parsed = parse(attempts[-1])
+                        final_error = None
+                        break
+                    except Exception as retry_error:
+                        final_error = retry_error
             else:
                 final_error = error
 
@@ -649,6 +766,7 @@ def _case_run(
         ),
         config={"recursion_limit": 30},
     )
+    freetext_summary = ""
     if state.get("diagnostic_packet"):
         packet = state["diagnostic_packet"]
         conversation = tuple(state.get("conversation", []))
@@ -666,12 +784,26 @@ def _case_run(
                         if turn.role == "patient"
                     ),
                 )
+            summary_text = ""
+            if condition == "freetext-summary":
+                summary_response = provider(
+                    f"{case.case_id}:summarize",
+                    "summarize",
+                    _summary_prompt(case, conversation),
+                    SUMMARY_SCHEMA,
+                )
+                record_response("summarize", summary_response)
+                summary_text = str(
+                    _json_object(summary_response.raw_output).get("summary", "")
+                ).strip()
+                freetext_summary = summary_text
             response: ProviderResponse | None = None
             try:
                 parsed, response, error = diagnose_condition(
                     condition_packet,
                     condition,
                     conversation=conversation,
+                    summary_text=summary_text,
                 )
                 if error is not None:
                     raise error
@@ -722,6 +854,7 @@ def _case_run(
         "question_refiner_version": getattr(question_refiner, "version", "none"),
         "retrieval": retrieval_trace,
         "handoff": asdict(handoff) if handoff else None,
+        "freetext_summary": freetext_summary,
         "handoff_metrics": _fact_retention(handoff, patient) if handoff else None,
         "interview_contract_corrections": interview_contract_corrections,
         "revealed_patient_facts": patient.revealed,
@@ -876,7 +1009,7 @@ def summarize(
             else:
                 ties += 1
         paired[f"{primary_condition}_vs_{baseline}"] = {
-            "handoff_plus_sources_wins": left_wins,
+            "primary_wins": left_wins,
             "baseline_wins": right_wins,
             "ties": ties,
             "mcnemar_exact_p": _mcnemar_exact_p(left_wins, right_wins),
